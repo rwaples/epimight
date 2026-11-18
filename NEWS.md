@@ -13,6 +13,8 @@
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The
   coverage checks scored the fixed-effect last-age pool of h2 and the fixed-effect pool of per-stratum rg; the
   guide now says so, and adds a section on pooling h2 across strata.
+- `pedigreegraph` is required at 0.16.0 or later. Sandwich SEs from 0.12.2 differed from 0.16.0 by up to 2.3e-4
+  relative on the citb port check; the floor keeps the R and Python pair sets the same.
 
 # epimight 2.2.0
 

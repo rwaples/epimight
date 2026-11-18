@@ -34,7 +34,7 @@ Imports:
     yaml,
     rjson,
     stringr,
-    pedigreegraph
+    pedigreegraph (>= 0.16.0)
 VignetteBuilder: knitr
 RoxygenNote: 7.2.3
 Roxygen: list(markdown = TRUE)
