@@ -600,7 +600,7 @@ reach, and reports those ages next to rg:
 |--------------------+-------------------------------------------------------------------------+---------------------------|
 | kc, krc            | The last age the trait 1 population and cross CIF tables share          | ~age_kc~                  |
 | kf and its cases   | The last row of the trait 2 population CIF table, its end of follow-up  | ~age_kf~                  |
-| h2 of trait 1, 2   | The last row of each h2 table; with ~meta_analyze~, the meta table's   | ~age_h2_t1~, ~age_h2_t2~  |
+| h2 of trait 1, 2   | The last row of each h2 table; with ~meta_analyze~, the meta table at that age | ~age_h2_t1~, ~age_h2_t2~  |
 
 A stratum gets an rg row when all four exist and ~calculate_rg~ is finite. The meta-analyzed
 rg has no age columns, since it pools strata read at different ages.

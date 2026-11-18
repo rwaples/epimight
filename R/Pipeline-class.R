@@ -43,7 +43,7 @@ Pipeline <- R6::R6Class( #nolint
     # The rows calculate_rg reads, one per stratum, each input at its own last age: kc and krc at
     # the last age the trait 1 population and the cross cohort share (`age_kc`), kf at the trait 2
     # population's last age (`age_kf`), and each h2 at its table's last row (`age_h2_t1`,
-    # `age_h2_t2`; with `meta_analyze`, the meta table's last row, for every stratum). A stratum
+    # `age_h2_t2`; with `meta_analyze`, the meta table at that stratum's own last h2 age). A stratum
     # enters when all four exist; the h2 tables gate it but no longer set the age kc and kf are read at.
     rg_estimates = function(args) {
       stratify_columns <- args$cif_cross$stratify_columns
@@ -78,15 +78,25 @@ Pipeline <- R6::R6Class( #nolint
         relatedness = args$relatedness
       )
     },
-    # One h2 per stratum for rg: each stratum's last row with a finite, positive h2, or with
-    # `meta_analyze` the meta table's last such row, which carries no strata and joins every
-    # stratum. A per-stratum h2 table already holds only such rows; a meta row can be non-finite
-    # (a stratum with SE 0 at that age), and is skipped rather than dropping every stratum.
-    # Columns `<prefix>_h2` and `age_h2_<prefix>`, plus the strata.
+    # One h2 per stratum for rg, at the stratum's last age with a finite, positive h2. With
+    # `meta_analyze`, the meta table's h2 at that age, so the pooled h2 always includes the stratum
+    # itself; a stratum whose age has no finite, positive meta h2 drops out alone. Columns
+    # `<prefix>_h2` and `age_h2_<prefix>`, plus the strata.
     h2_last_row = function(h2, args, prefix, stratify_columns) {
-      rows   <- h2$results |> filter(is.finite(h2), h2 > 0)
-      strata <- if ("meta_analyze" %in% names(args)) list() else stratify_columns
-      last   <- rows |> self$max_age_by_stratification(strata) |> select(!!!strata, age, h2)
+      usable <- function(results) results |> filter(is.finite(h2), h2 > 0)
+      meta   <- "meta_analyze" %in% names(args)
+      local  <- if (meta) {
+        sub_args              <- args
+        sub_args$meta_analyze <- NULL
+        do.call(private$native_h2, sub_args)$results
+      } else {
+        h2$results
+      }
+      last <- usable(local) |> self$max_age_by_stratification(stratify_columns) |> select(!!!stratify_columns, age, h2)
+
+      if (meta) {
+        last <- last |> select(-h2) |> inner_join(usable(h2$results) |> select(age, h2), by = join_by(age))
+      }
 
       last |> rename(!!paste0(prefix, "_h2") := "h2", !!paste0("age_h2_", prefix) := "age")
     },
@@ -904,7 +914,8 @@ Pipeline <- R6::R6Class( #nolint
     #'
     #' Per stratum, each input is read at the latest age its own tables reach: kc and krc at the
     #' last age the trait 1 population and cross CIFs share, kf at the trait 2 population's last
-    #' row, and each h2 at its table's last row (with `meta_analyze`, the meta table's last row).
+    #' row, and each h2 at its table's last row (with `meta_analyze`, the meta table at that stratum's own
+    #' last h2 age).
     #'
     #' @param cif_cross Analysis arguments for cross trait cumulative incidence. See run_cif for details.
     #' @param h2_t1 Analysis arguments for trait 1 heritability. See run_h2 for details.

@@ -5,8 +5,9 @@
 - `run_rg` and `run_default_rg` read each input at its own last age. Per stratum, kc and krc at the
   last age the trait 1 population and cross CIFs share, kf at the trait 2 population's last row (its end
   of follow-up), and each h2 at its table's last row; with `meta_analyze` in an h2 argument, the meta
-  table's last row. Results gain `age_kc`, `age_kf`, `age_h2_t1` and `age_h2_t2`. Before, all five
-  inputs were read at the last age all five tables shared, which the earlier-onset trait sets, so rg
+  table at that stratum's own last h2 age, so the pooled h2 always includes the stratum. Results gain
+  `age_kc`, `age_kf`, `age_h2_t1` and `age_h2_t2`. Before, all five inputs were read at the last age
+  all five tables shared, which the earlier-onset trait sets, so rg
   was biased when the two traits' onsets differ. On 200 simulated replicates with onset midpoints 57
   and 25 (truth 0.90), the full-sibling rg moves from 0.9752 to 0.9025 (with the onsets swapped, from
   0.8711 to 0.9052), and the parent-offspring rg from 0.9556 to 0.9005 (0.8752 to 0.9043). Half-sibling
