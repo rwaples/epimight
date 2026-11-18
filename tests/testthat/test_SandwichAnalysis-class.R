@@ -442,6 +442,17 @@ describe("rg strata and the h2 rg reads", {
     expect_equal(estimates(pipeline)$born_at_year, sort(unique(pool$born_at_year)))
   })
 
+  it("skips a non-finite h2 row and reads the last finite, positive one", {
+    private <- pipeline_private(Pipeline$new(pool = golden$pool))
+    meta    <- list(results = data.table(index_trait = "trait1", age = c(10L, 12L, 15L), h2 = c(0.3, 0.4, NaN)))
+    local   <- list(results = data.table(born_at_year = c(1L, 1L, 2L), age = c(10L, 12L, 9L), h2 = c(0.2, -0.1, 0.5)))
+
+    expect_equal(as.data.table(private$h2_last_row(meta, list(meta_analyze = "fixed"), "t1", list("born_at_year"))),
+                 data.table(age_h2_t1 = 12L, t1_h2 = 0.4))
+    expect_equal(as.data.table(private$h2_last_row(local, list(), "t2", list("born_at_year")))[order(born_at_year)],
+                 data.table(born_at_year = 1:2, age_h2_t2 = c(10L, 9L), t2_h2 = c(0.2, 0.5)))
+  })
+
   it("reads a meta-analyzed h2 at the meta table's last row in every stratum", {
     pipeline <- Pipeline$new(pool = golden$pool)
     meta     <- c(golden_h2_args("trait1"), meta_analyze = "fixed")
