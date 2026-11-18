@@ -118,7 +118,8 @@ describe("per-stratum h2 and rg influence", {
                        k_pop = k_pop2, k_fh = k_fh2)], rc)
   )
   rg <- sandwich$rg_terms(
-    units[, .(output = paste0("rg@", stratum), stratum, age, pop1 = "pop1", cross = "cross", pop2 = "pop2",
+    units[, .(output = paste0("rg@", stratum), stratum, age_kc = age, age_kf = age, pop1 = "pop1", cross = "cross",
+              pop2 = "pop2",
               k_pop1, k_cross, k_pop2, h2_t1, h2_t2,
               h2_t1_output = paste0("h2_1@", stratum), h2_t2_output = paste0("h2_2@", stratum))],
     h2, rc

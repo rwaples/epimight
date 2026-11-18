@@ -84,12 +84,13 @@ rg_points <- function(tables, args, frozen) {
     method <- args[[paste0("h2_t", k)]]$meta_analyze
     if (is.null(method)) h2_at(tables, k, s, a) else pooled_at(tables, k, method, a)
   }
-  rg <- mapply(function(s, a) {
+  # Each input at the age rg read it (frozen): kc and krc at age_kc, kf at age_kf, h2 at its own.
+  rg <- mapply(function(s, a_kc, a_kf, a_1, a_2) {
     rg_calc$calculate_rg(
-      1, cif_at(tables, pop[1], s, a), cif_at(tables, cross, s, a), cif_at(tables, pop[2], s, a), 1, 1, 1,
-      h2_value(1, s, a), h2_value(2, s, a), 0.5
+      1, cif_at(tables, pop[1], s, a_kc), cif_at(tables, cross, s, a_kc), cif_at(tables, pop[2], s, a_kf),
+      1, 1, 1, h2_value(1, s, a_1), h2_value(2, s, a_2), 0.5
     )$rg
-  }, frozen$stratum, frozen$age)
+  }, frozen$stratum, frozen$age_kc, frozen$age_kf, frozen$age_h2_t1, frozen$age_h2_t2)
 
   if (is.null(args$meta_analyze)) setNames(rg, paste0("rg|", frozen$stratum)) else c(`rg|meta` = sum(frozen$share * rg))
 }
@@ -155,7 +156,7 @@ describe("meta-analyzed sandwich influence", {
   psi    <- production_influence()
 
   it("covers strata with different rg ages and last ages, and pooled h2 with dropped strata", {
-    expect_gt(uniqueN(rg_frozen$t1_fixed$age), 1)
+    expect_gt(uniqueN(rg_frozen$t1_fixed$age_kc), 1)
     expect_gt(uniqueN(h2_pool$fixed$last$age), 1)
     a_star <- max(h2_meta[[1]]$results$age)
     expect_lt(nrow(local_h2[[1]][age == a_star]), uniqueN(local_h2[[1]]$stratum))

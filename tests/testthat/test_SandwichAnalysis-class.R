@@ -382,3 +382,74 @@ describe("Pipeline with a pedigree and strata that end at different ages", {
     expect_pooled_golden(pipeline, golden$python)
   })
 })
+
+describe("Pipeline with a pedigree and rg inputs read at four different ages", {
+  golden   <- read_golden("sandwich-golden-agerule")
+  pipeline <- Pipeline$new(pool = golden$pool, pedigree = golden$pedigree)
+  rg       <- pipeline$run_rg(
+    h2_t1 = golden_h2_args("trait1"), h2_t2 = golden_h2_args("trait2"), relatedness = 0.5,
+    cif_cross = list(index_trait = "trait1", relatives_trait = "trait2", relatives_kind = "FS",
+                     stratify_columns = list("born_at_year"))
+  )$results[order(born_at_year)]
+
+  it("reads kc and krc, kf, and each h2 at four different ages in every stratum", {
+    ages <- rg[, .(born_at_year, age_kc, age_kf, age_h2_t1, age_h2_t2)]
+    expect_true(all(apply(ages[, -1], 1, uniqueN) == 4))
+  })
+
+  it("matches the Python sandwich on per-stratum rg", {
+    expected <- golden$python[quantity == "rg" & !is.na(born_at_year)][order(born_at_year)]
+    expect_equal(rg$born_at_year, expected$born_at_year)
+    expect_equal(rg$rg, expected$point, tolerance = 1e-10)
+    expect_equal(rg$sandwich_se, expected$se, tolerance = 1e-8)
+  })
+
+  it("matches the Python sandwich on the last-age pool of h2 and the pooled rg", {
+    expect_pooled_golden(pipeline, golden$python)
+  })
+})
+
+describe("rg strata and the h2 rg reads", {
+  golden    <- read_golden("sandwich-golden-agerule")
+  cross     <- list(index_trait = "trait1", relatives_trait = "trait2", relatives_kind = "FS",
+                    stratify_columns = list("born_at_year"))
+  estimates <- function(pipeline, h2_t1 = golden_h2_args("trait1")) {
+    as.data.table(pipeline_private(pipeline)$rg_estimates(
+      list(h2_t1 = h2_t1, h2_t2 = golden_h2_args("trait2"), cif_cross = cross, relatedness = 0.5)
+    ))[order(born_at_year)]
+  }
+
+  it("gives rg in strata whose five tables share no age, the h2 tables only gating them", {
+    # Trait 1's events start after trait 2's last one, so no age is in all five tables.
+    pool <- copy(golden$pool)
+    pool[trait == "trait1" & trait_status != 0, trait_age := pmax(trait_age, 8L)]
+    pool[trait == "trait2" & trait_status != 0, trait_age := pmin(trait_age, 5L)]
+    pipeline <- Pipeline$new(pool = pool)
+    ages     <- function(args) {
+      results <- as.data.table(args$results)
+      results[, .(age = unique(age)), by = born_at_year]
+    }
+    tables <- list(
+      ages(do.call(pipeline$run_cif, golden_h2_args("trait1")$cif_pop)),
+      ages(do.call(pipeline$run_cif, cross)),
+      ages(do.call(pipeline$run_cif, golden_h2_args("trait2")$cif_pop)),
+      ages(do.call(pipeline$run_h2, golden_h2_args("trait1"))),
+      ages(do.call(pipeline$run_h2, golden_h2_args("trait2")))
+    )
+    shared <- Reduce(function(x, y) merge(x, y, by = c("born_at_year", "age")), tables)
+
+    expect_equal(nrow(shared), 0)
+    expect_equal(estimates(pipeline)$born_at_year, sort(unique(pool$born_at_year)))
+  })
+
+  it("reads a meta-analyzed h2 at the meta table's last row in every stratum", {
+    pipeline <- Pipeline$new(pool = golden$pool)
+    meta     <- c(golden_h2_args("trait1"), meta_analyze = "fixed")
+    last     <- as.data.table(do.call(pipeline$run_h2, meta)$results)[order(age)][.N]
+    rows     <- estimates(pipeline, meta)
+
+    expect_gt(nrow(rows), 1)
+    expect_equal(rows$age_h2_t1, rep(last$age, nrow(rows)))
+    expect_equal(rows$t1_h2, rep(last$h2, nrow(rows)))
+  })
+})

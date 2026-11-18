@@ -590,6 +590,25 @@ with the following members:
 | results      | Analysis results as a single ~data.table~          |
 | args         | Arguments supplied to the interface                |
 
+* The ages rg reads
+
+~calculate_rg~ is a lifetime-risk formula: its five inputs should each describe risk through
+the end of follow-up. Per stratum, ~run_rg~ reads each one at the latest age its own tables
+reach, and reports those ages next to rg:
+
+| Input              | Read at                                                                 | Column                    |
+|--------------------+-------------------------------------------------------------------------+---------------------------|
+| kc, krc            | The last age the trait 1 population and cross CIF tables share          | ~age_kc~                  |
+| kf and its cases   | The last row of the trait 2 population CIF table, its end of follow-up  | ~age_kf~                  |
+| h2 of trait 1, 2   | The last row of each h2 table; with ~meta_analyze~, the meta table's   | ~age_h2_t1~, ~age_h2_t2~  |
+
+A stratum gets an rg row when all four exist and ~calculate_rg~ is finite. The meta-analyzed
+rg has no age columns, since it pools strata read at different ages.
+
+Earlier versions read all five inputs at one age, the last age all five tables shared. The
+trait with the earlier onset sets that age, so the other trait was read before most of its
+cases had occurred, and rg was biased up or down depending on which trait had the later onset.
+
 * Pooling h² across strata
 
 ~run_h2~ gives one h2 per stratum and age, and its ~meta_analyze~ argument pools the strata
@@ -702,7 +721,8 @@ They are filled at the headline row only and are ~NA~ on the others:
 
 - h2: each stratum's last age; for ~meta_analyze~, the last age of the meta table.
 - ~run_h2_pooled~: its pooled row.
-- rg: every row, since rg already has one age per stratum, and the meta-analyzed rg.
+- rg: every row, each input's influence taken at the age in its ~age_*~ column, and the
+  meta-analyzed rg.
 
 Points and the native ~se~ do not change. ~metadata$sandwich~ reports the ~batch_size~ and
 the number of ~passes~ over the pedigree.

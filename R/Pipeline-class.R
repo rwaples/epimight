@@ -40,10 +40,14 @@ Pipeline <- R6::R6Class( #nolint
         select(!!!stratify_columns, age, h2) |>
         rename_with(~ paste0(prefix, "_", .), .cols = c(h2))
     },
+    # The rows calculate_rg reads, one per stratum, each input at its own last age: kc and krc at
+    # the last age the trait 1 population and the cross cohort share (`age_kc`), kf at the trait 2
+    # population's last age (`age_kf`), and each h2 at its table's last row (`age_h2_t1`,
+    # `age_h2_t2`; with `meta_analyze`, the meta table's last row, for every stratum). The h2 tables
+    # and the trait 2 population decide which strata enter, not the age the others are read at.
     rg_estimates = function(args) {
       stratify_columns <- args$cif_cross$stratify_columns
       join_columns     <- c(list("age"), stratify_columns)
-      join_symbols     <- rlang::syms(join_columns)
 
       cif_t1_pop <- do.call(self$run_cif, args$h2_t1$cif_pop)
       cif_t2_pop <- do.call(self$run_cif, args$h2_t2$cif_pop)
@@ -51,54 +55,21 @@ Pipeline <- R6::R6Class( #nolint
       h2_t2      <- do.call(private$native_h2, args$h2_t2)
       cif_cross  <- do.call(self$run_cif, args$cif_cross)
 
-      h2_t1_meta <- "meta_analyze" %in% names(args$h2_t1)
-      h2_t2_meta <- "meta_analyze" %in% names(args$h2_t2)
-
-      if (h2_t1_meta || h2_t2_meta) {
-        stratify_combinations <- cif_cross$results |>
-          group_by(!!!join_symbols) |>
-          select(!!!join_columns) |>
-          ungroup()
-
-        if (h2_t1_meta) {
-          h2_t1$results <- right_join(
-            h2_t1$results,
-            stratify_combinations,
-            by = join_by(age)
-          ) |>
-            filter(!is.na(index_trait)) |>
-            select(index_trait, !!!join_symbols, h2, se, l95, u95)
-        }
-
-        if (h2_t2_meta) {
-          h2_t2$results <- right_join(
-            h2_t2$results,
-            stratify_combinations,
-            by = join_by(age)
-          ) |>
-            filter(!is.na(index_trait)) |>
-            select(index_trait, !!!join_symbols, h2, se, l95, u95)
-        }
-      }
-
-      combined <- private$add_cif_prefix(cif_t1_pop$results, "t1_pop", stratify_columns) |>
+      kc <- private$add_cif_prefix(cif_t1_pop$results, "t1_pop", stratify_columns) |>
         inner_join(
           private$add_cif_prefix(cif_cross$results, "cross", stratify_columns),
           by = join_by(!!!join_columns)
         ) |>
-        inner_join(
-          private$add_cif_prefix(cif_t2_pop$results, "t2_pop", stratify_columns),
-          by = join_by(!!!join_columns)
-        ) |>
-        inner_join(
-          private$add_h2_prefix(h2_t1$results, "t1", stratify_columns),
-          by = join_by(!!!join_columns)
-        ) |>
-        inner_join(
-          private$add_h2_prefix(h2_t2$results, "t2", stratify_columns),
-          by = join_by(!!!join_columns)
-        ) |>
-        self$max_age_by_stratification(stratify_columns)
+        self$max_age_by_stratification(stratify_columns) |>
+        rename(age_kc = age)
+      kf <- private$add_cif_prefix(cif_t2_pop$results, "t2_pop", stratify_columns) |>
+        self$max_age_by_stratification(stratify_columns) |>
+        rename(age_kf = age)
+
+      combined <- private$join_strata(kc, kf, stratify_columns) |>
+        private$join_strata(private$h2_last_row(h2_t1, args$h2_t1, "t1", stratify_columns), stratify_columns) |>
+        private$join_strata(private$h2_last_row(h2_t2, args$h2_t2, "t2", stratify_columns), stratify_columns) |>
+        as.data.table()
 
       if (nrow(combined) == 0) stop("After joining all cif and h2 results no data was left")
 
@@ -106,6 +77,27 @@ Pipeline <- R6::R6Class( #nolint
         estimates   = combined,
         relatedness = args$relatedness
       )
+    },
+    # One h2 per stratum for rg: each stratum's last h2 row, or with `meta_analyze` the meta
+    # table's last row, which carries no strata and joins every stratum. Columns `<prefix>_h2` and
+    # `age_h2_<prefix>`, plus the strata.
+    h2_last_row = function(h2, args, prefix, stratify_columns) {
+      last <- if ("meta_analyze" %in% names(args)) {
+        h2$results |> arrange(desc(age)) |> head(1) |> select(age, h2)
+      } else {
+        h2$results |> self$max_age_by_stratification(stratify_columns) |> select(!!!stratify_columns, age, h2)
+      }
+
+      last |> rename(!!paste0(prefix, "_h2") := "h2", !!paste0("age_h2_", prefix) := "age")
+    },
+    # Joins `y` to `x` on the strata `y` carries: none (a meta-analyzed h2, or no stratification)
+    # crosses it with every row of `x`.
+    join_strata = function(x, y, stratify_columns) {
+      shared <- intersect(unlist(stratify_columns), names(y))
+
+      if (length(shared) == 0) return(cross_join(x, y))
+
+      inner_join(x, y, by = join_by(!!!shared))
     },
     # Sandwich SEs. A plan names the sandwich output behind each row of a results table (NA for
     # rows without one), holds the term table of those outputs (see `SandwichAnalysis$h2_terms`)
@@ -202,7 +194,7 @@ Pipeline <- R6::R6Class( #nolint
       list(output = output, terms = inputs$terms, cifs = list(args$cif_pop, args$cif_fh))
     },
     # The plan of an rg analysis: one output per stratum, pooled into "rg|meta" with run_meta's
-    # shares when `meta_analyze` is set.
+    # shares when `meta_analyze` is set. Each input's influence is taken at the age rg read it.
     rg_plan = function(args) {
       sub_args              <- args
       sub_args$meta_analyze <- NULL
@@ -213,7 +205,8 @@ Pipeline <- R6::R6Class( #nolint
         transmute(
           output  = private$output_key("rg", strata),
           stratum = strata,
-          age,
+          age_kc,
+          age_kf,
           pop1    = private$cache_key("cif", args$h2_t1$cif_pop),
           cross   = private$cache_key("cif", args$cif_cross),
           pop2    = private$cache_key("cif", args$h2_t2$cif_pop),
@@ -223,8 +216,8 @@ Pipeline <- R6::R6Class( #nolint
           h2_t1   = t1_h2,
           h2_t2   = t2_h2
         )
-      t1    <- private$h2_terms_at(args$h2_t1, units, "t1")
-      t2    <- private$h2_terms_at(args$h2_t2, units, "t2")
+      t1    <- private$h2_terms_at(args$h2_t1, data.table(stratum = strata, age = estimates$age_h2_t1), "t1")
+      t2    <- private$h2_terms_at(args$h2_t2, data.table(stratum = strata, age = estimates$age_h2_t2), "t2")
       units <- units |> mutate(h2_t1_output = t1$output, h2_t2_output = t2$output)
       terms <- private$sandwich$rg_terms(units, bind_rows(t1$terms, t2$terms), args$relatedness)
       cifs  <- list(args$h2_t1$cif_pop, args$h2_t1$cif_fh, args$h2_t2$cif_pop, args$h2_t2$cif_fh, args$cif_cross)
@@ -418,7 +411,8 @@ Pipeline <- R6::R6Class( #nolint
 
       stratify_columns <- args$cif_cross$stratify_columns
       estimates        <- private$rg_estimates(args)
-      rg               <- estimates |> select(!!!stratify_columns, rg, se = rg_se, l95 = rg_l95, u95 = rg_u95)
+      rg               <- estimates |>
+        select(!!!stratify_columns, age_kc, age_kf, age_h2_t1, age_h2_t2, rg, se = rg_se, l95 = rg_l95, u95 = rg_u95)
 
       if (nrow(rg) == 0) stop("No genetic correlation results produced")
 
@@ -908,11 +902,17 @@ Pipeline <- R6::R6Class( #nolint
     },
     #' Produces genetic correlations for the two given traits.
     #'
+    #' Per stratum, each input is read at the latest age its own tables reach: kc and krc at the
+    #' last age the trait 1 population and cross CIFs share, kf at the trait 2 population's last
+    #' row, and each h2 at its table's last row (with `meta_analyze`, the meta table's last row).
+    #'
     #' @param cif_cross Analysis arguments for cross trait cumulative incidence. See run_cif for details.
     #' @param h2_t1 Analysis arguments for trait 1 heritability. See run_h2 for details.
     #' @param h2_t2 Analysis arguments for trait 2 heritability. See run_h2 for details.
     #' @param relatedness Relatedness coefficient to use in rg calculation.
-    #' @returns A named list with metadata and results.
+    #' @returns A named list with metadata and results. Per-stratum results carry the strata, the
+    #'   ages each input was read at (`age_kc`, `age_kf`, `age_h2_t1`, `age_h2_t2`), and `rg`, `se`,
+    #'   `l95`, `u95`.
     run_rg = function(...) {
       out <- private$native_rg(...)
 

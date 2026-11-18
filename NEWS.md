@@ -1,5 +1,17 @@
 # epimight (development)
 
+## Changed (breaking)
+
+- `run_rg` and `run_default_rg` read each input at its own last age. Per stratum, kc and krc at the
+  last age the trait 1 population and cross CIFs share, kf at the trait 2 population's last row (its end
+  of follow-up), and each h2 at its table's last row; with `meta_analyze` in an h2 argument, the meta
+  table's last row. Results gain `age_kc`, `age_kf`, `age_h2_t1` and `age_h2_t2`. Before, all five
+  inputs were read at the last age all five tables shared, which the earlier-onset trait sets, so rg
+  was biased when the two traits' onsets differ. On 200 simulated replicates with onset midpoints 57
+  and 25 (truth 0.90), the full-sibling rg moves from 0.9752 to 0.9025, and with the onsets swapped from
+  0.8711 to 0.9052. A stratum now gets rg whenever both h2 tables exist, even if the five tables share
+  no age. The sandwich SEs follow each input to its age.
+
 ## Added
 
 - `Pipeline$run_h2_pooled()`, the last-age pool of h2: each stratum's h2 at its own last age (the row `run_h2`

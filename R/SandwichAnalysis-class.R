@@ -1,6 +1,6 @@
 # Column names the term tables use inside data.table expressions.
 utils::globalVariables(c(
-  ".", "age", "coef", "cohort", "cross", "fh", "from", "h2_t1_output", "h2_t2_output", "i.coef", "k",
+  ".", "age", "age_kc", "age_kf", "coef", "cohort", "cross", "fh", "from", "h2_t1_output", "h2_t2_output", "i.coef", "k",
   "k_cross", "k_fh", "k_pop", "k_pop1", "k_pop2", "output", "pop", "pop1", "pop2", "stratum", "to"
 ))
 
@@ -341,14 +341,15 @@ SandwichAnalysis <- R6::R6Class( #nolint
     #' @description
     #' Influence terms of per-stratum rg values.
     #'
-    #' The rg calculator reads three CIFs directly and two h2 values. Each h2 value is
-    #' either that stratum's own h2 at the rg age or a pooled h2, and its influence comes in
+    #' The rg calculator reads three CIFs directly and two h2 values. The trait 1 population and
+    #' cross CIFs are read at `age_kc`, the trait 2 population CIF at `age_kf`. Each h2 value is
+    #' either that stratum's own h2 at its last age or a pooled h2, and its influence comes in
     #' through the h2 term table and the rg gradient in that h2.
     #'
-    #' @param units Data.table with one row per rg value: `output`, `stratum`, `age`, cohort
-    #'   keys `pop1`, `cross`, `pop2`, their CIFs `k_pop1`, `k_cross`, `k_pop2`, the h2
-    #'   values `h2_t1`, `h2_t2` the calculator used, and `h2_t1_output`, `h2_t2_output`,
-    #'   the outputs of `h2_terms` behind them.
+    #' @param units Data.table with one row per rg value: `output`, `stratum`, the ages `age_kc`
+    #'   and `age_kf`, cohort keys `pop1`, `cross`, `pop2`, their CIFs `k_pop1`, `k_cross`,
+    #'   `k_pop2`, the h2 values `h2_t1`, `h2_t2` the calculator used, and `h2_t1_output`,
+    #'   `h2_t2_output`, the outputs of `h2_terms` behind them.
     #' @param h2 Term table of every output named in `h2_t1_output` and `h2_t2_output`.
     #' @param rc Relationship coefficient.
     #' @returns A term table.
@@ -358,9 +359,9 @@ SandwichAnalysis <- R6::R6Class( #nolint
       )
 
       direct <- bind_rows(
-        units |> transmute(output, cohort = pop1, stratum, age, k = k_pop1, coef = grad[, "pop1"]),
-        units |> transmute(output, cohort = cross, stratum, age, k = k_cross, coef = grad[, "cross"]),
-        units |> transmute(output, cohort = pop2, stratum, age, k = k_pop2, coef = grad[, "pop2"])
+        units |> transmute(output, cohort = pop1, stratum, age = age_kc, k = k_pop1, coef = grad[, "pop1"]),
+        units |> transmute(output, cohort = cross, stratum, age = age_kc, k = k_cross, coef = grad[, "cross"]),
+        units |> transmute(output, cohort = pop2, stratum, age = age_kf, k = k_pop2, coef = grad[, "pop2"])
       )
       through_h2 <- self$compose_terms(h2, bind_rows(
         units |> transmute(from = h2_t1_output, to = output, coef = grad[, "h2_t1"]),
