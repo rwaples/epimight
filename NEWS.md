@@ -8,9 +8,12 @@
   table's last row. Results gain `age_kc`, `age_kf`, `age_h2_t1` and `age_h2_t2`. Before, all five
   inputs were read at the last age all five tables shared, which the earlier-onset trait sets, so rg
   was biased when the two traits' onsets differ. On 200 simulated replicates with onset midpoints 57
-  and 25 (truth 0.90), the full-sibling rg moves from 0.9752 to 0.9025, and with the onsets swapped from
-  0.8711 to 0.9052. A stratum now gets rg whenever both h2 tables exist, even if the five tables share
-  no age. The sandwich SEs follow each input to its age.
+  and 25 (truth 0.90), the full-sibling rg moves from 0.9752 to 0.9025 (with the onsets swapped, from
+  0.8711 to 0.9052), and the parent-offspring rg from 0.9556 to 0.9005 (0.8752 to 0.9043). Half-sibling
+  and first-cousin rg keep a smaller upward bias at such an onset gap: over 600 replicates of the 57/25
+  cell, 0.9206 and 0.9106. A stratum gets rg when the trait 1 population and cross CIFs share an age and
+  both h2 tables have a row, even if the five tables share no age. The sandwich SEs follow each input to
+  its age.
 
 ## Added
 
@@ -25,8 +28,9 @@
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The
   coverage checks scored the fixed-effect last-age pool of h2 and the fixed-effect pool of per-stratum rg; the
   guide now says so, and adds a section on pooling h2 across strata.
-- `pedigreegraph` is required at 0.16.0 or later. Sandwich SEs from 0.12.2 differed from 0.16.0 by up to 2.3e-4
-  relative on the citb port check; the floor keeps the R and Python pair sets the same.
+- `pedigreegraph` is required at 0.16.0 or later. With 0.12.2 installed, sandwich SEs differed from the Python
+  port on pedigree-graph 0.16.0 by up to 2.3e-4 relative on the citb port check; with 0.16.0 they agree to
+  1.0e-10.
 
 # epimight 2.2.0
 
