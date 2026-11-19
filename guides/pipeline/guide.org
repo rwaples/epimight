@@ -590,6 +590,35 @@ with the following members:
 | results      | Analysis results as a single ~data.table~          |
 | args         | Arguments supplied to the interface                |
 
+* CIF standard errors
+
+~run_cif~ computes the ~var~, ~se~, ~l95~ and ~u95~ columns with one of two variance
+estimators, chosen by the cohort:
+
+- A cohort without a ~weight~ column goes to ~cmprsk::cuminc()~ and gets its variance, an
+  estimate of Aalen's asymptotic variance of the Aalen–Johansen CIF. Population cohorts are
+  always in this group, and so are family-history cohorts with ~use_weighted = FALSE~.
+- A cohort with a ~weight~ column (family-history and cross-trait cohorts with
+  ~use_weighted = TRUE~, the default) gets Greenwood's formula on weighted counts:
+  ~S(t)^2 * sum(d1 / (n * (n - d1)))~, where ~S~ is the all-cause Kaplan–Meier survival,
+  ~d1~ the weighted cause-1 events and ~n~ the weighted number at risk.
+
+The two estimators differ even when every weight is 1. Take ages 1, 2, 3 with statuses 1, 1,
+0. Both paths report ~cif = 1/3~ at age 2, but ~cuminc~ gives ~var = 1/9~ and the weighted
+path ~var = 2/27~. Nobody is censored before age 3, so here 2/27, the binomial variance
+~(1/3)(2/3)/3~, is the sampling variance. The gap shrinks as the number at risk grows. The
+weighted path's sum has no competing-event (status 2) terms, so with competing events its
+variance is too small, and the shortfall grows with age as competing events accumulate.
+~cuminc~'s variance includes them.
+
+So, within one pipeline run, the population CIF and the family-history CIF SEs come from
+different estimators. Do not compare the two through their SEs or confidence intervals as
+if they were on one footing. The h2 and rg SEs do not use these columns; they come from
+the effective case counts (~cases~). The CIF SEs do set the weights of ~run_cif~'s
+~meta_analyze~, so when ~cif_pop~ or ~cif_fh~ carries ~meta_analyze~, they weight the pooled
+CIFs that h2 is computed from. For how the weighted variance behaves when the weights are
+not 1, see Standard errors of weighted CIFs.
+
 * Pooling h² across strata
 
 ~run_h2~ gives one h2 per stratum and age, and its ~meta_analyze~ argument pools the strata

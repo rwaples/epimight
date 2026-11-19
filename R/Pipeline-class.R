@@ -767,6 +767,16 @@ Pipeline <- R6::R6Class( #nolint
     #' @param relative_kind Label of the kind of relative to retrieve time-to-event data for.
     #' @param stratify_columns List of columns to stratify the results on.
     #' @param use_weighted Boolean on whether to calculate the weight column used in weighted CIF calculations.
+    #' @details
+    #' The `var`, `se`, `l95` and `u95` columns come from one of two variance estimators. A cohort
+    #' without weights (a population cohort, or a family-history cohort with `use_weighted = FALSE`)
+    #' gets `cmprsk::cuminc()`'s variance, an estimate of Aalen's asymptotic variance. A weighted
+    #' cohort gets Greenwood's formula on weighted counts, `S(t)^2 * sum(d1 / (n * (n - d1)))` with
+    #' `S` the all-cause Kaplan-Meier survival. The two differ even when every weight is 1: for ages
+    #' 1, 2, 3 with statuses 1, 1, 0, both give `cif = 1/3` at age 2, with `var = 1/9` from cuminc
+    #' and `2/27` from the weighted path. Greenwood's sum has no competing-event terms, so with
+    #' competing events the weighted variance is too small. Do not compare population and
+    #' family-history CIFs through these SEs. h2 and rg SEs do not use them.
     #' @returns A named list with metadata and results.
     run_cif = function(...) {
       validator <- do.call(ArgumentsValidator$new, self$validation_rules$cif$properties)

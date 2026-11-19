@@ -13,6 +13,11 @@
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The
   coverage checks scored the fixed-effect last-age pool of h2 and the fixed-effect pool of per-stratum rg; the
   guide now says so, and adds a section on pooling h2 across strata.
+- `run_cif`'s documentation and the pipeline guide's new "CIF standard errors" section say which variance each
+  CIF gets. Unweighted cohorts (population cohorts, and family-history cohorts with `use_weighted = FALSE`)
+  get `cmprsk::cuminc()`'s Aalen variance; weighted cohorts get Greenwood's formula on weighted counts. The two
+  differ even at unit weights (`var` 1/9 against 2/27 for ages 1, 2, 3 with statuses 1, 1, 0), and the weighted
+  formula leaves out the variance from competing events. The estimates do not change.
 
 # epimight 2.2.0
 
