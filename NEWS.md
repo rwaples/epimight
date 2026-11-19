@@ -14,6 +14,15 @@
   coverage checks scored the fixed-effect last-age pool of h2 and the fixed-effect pool of per-stratum rg; the
   guide now says so, and adds a section on pooling h2 across strata.
 
+## Fixed
+
+- `run_h2` dropped rows with `h2 <= 0`, but a stratum where every proband has all relatives affected has
+  kr == k1 and an h2 of 0 that the two CIF estimators (cmprsk for the population, the weighted estimator for
+  family history) round to about +-1e-16. Round-off then decided whether the row was kept, and a kept row
+  carried an SE of order 1 (and its rg an SE up to 1e8). Rows with `h2 <= 1e-10` are now dropped. No row of a
+  real-sized analysis is near that bound: over 400 simulated replicates of 50,000 probands, the smallest
+  |h2| at any age was 3.7e-6.
+
 # epimight 2.2.0
 
 ## Added

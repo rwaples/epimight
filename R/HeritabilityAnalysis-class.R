@@ -12,7 +12,13 @@
 HeritabilityAnalysis <- R6::R6Class( #nolint
   "HeritabilityAnalysis",
   inherit = Analysis,
-  private = list(),
+  private = list(
+    # An h2 at or below this is zero up to round-off, not a positive estimate. When the
+    # family-history cohort is the population with weight 1, kr == k1 and h2 is 0, but
+    # the population CIF (cmprsk) and the family-history CIF (weighted estimator) can
+    # differ in the last bits, which leaves h2 near +-1e-16 with an SE of order 1.
+    h2_tolerance = 1e-10
+  ),
   public = list(
     initialize = function() {
       super$initialize()
@@ -111,7 +117,7 @@ HeritabilityAnalysis <- R6::R6Class( #nolint
             all_vars(!is.infinite(.) & !is.na(.))
           ) |>
           filter(
-            h2 > 0
+            h2 > private$h2_tolerance
           )
       })
 

@@ -78,3 +78,24 @@ describe("calculate_h2", {
     expect_gt(h2$h2, 2)
   })
 })
+
+describe("run", {
+  h2_rows <- function(pop_cif, fh_cif, cases = 5) {
+    h2_analysis$run(
+      cif = data.table(age = 10L, pop_cif = pop_cif, pop_cases = cases, fh_cif = fh_cif, fh_cases = cases),
+      relatedness = 0.5
+    )
+  }
+
+  it("drops a row whose h2 is zero up to round-off", {
+    # Both CIFs are 5/7; cmprsk and the weighted estimator round it to adjacent doubles.
+    expect_equal(nrow(h2_rows(0.71428571428571419, 0.71428571428571441)), 0)
+    expect_equal(nrow(h2_rows(0.71428571428571441, 0.71428571428571419)), 0)
+  })
+
+  it("keeps a small h2 that is not round-off", {
+    rows <- h2_rows(0.1, 0.1 + 1e-6)
+    expect_equal(nrow(rows), 1)
+    expect_gt(rows$h2, 1e-6)
+  })
+})

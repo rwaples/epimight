@@ -963,3 +963,40 @@ describe("run_default_rg", {
     expect_equal(nrow(rg$results), 1)
   })
 })
+
+describe("run_h2 when every relative is affected", {
+  # Every proband's one relative is affected, so the family-history cohort is the
+  # population with weight 1 and kr == k1 at every age: h2 is 0, and no row is emitted.
+  # The population CIF comes from cmprsk and the family-history CIF from the weighted
+  # estimator; in birth year 1 they round 5/7 to adjacent doubles.
+  n      <- 11
+  status <- rep(1L, n)
+  status[8] <- 0L
+  age    <- rep(6L, n)
+  age[1:2] <- c(10L, 2L)
+  pool   <- data.table(
+    person_id         = as.character(seq_len(n)),
+    birth_year        = c(1, 1, 2, 1, 2, 1, 1, 1, 1, 2, 2),
+    trait             = "SCZ",
+    trait_status      = status,
+    trait_age         = age,
+    relatives_kind    = "siblings",
+    relatives_n       = 1L,
+    relatives_n_trait = 1L
+  )
+
+  it("emits no h2 row", {
+    h2 <- Pipeline$new(pool = pool)$run_h2(
+      cif_pop = list(index_trait = "SCZ", stratify_columns = list("birth_year")),
+      cif_fh  = list(
+        index_trait      = "SCZ",
+        relatives_trait  = "SCZ",
+        relatives_kind   = "siblings",
+        stratify_columns = list("birth_year")
+      ),
+      relatedness = 0.5
+    )
+
+    expect_equal(nrow(h2$results), 0)
+  })
+})
