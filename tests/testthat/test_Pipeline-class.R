@@ -353,6 +353,99 @@ describe("run_cif", {
     expect_dataframe_not_equal(cif$results, cif_fixed_meta$results)
     expect_dataframe_not_equal(cif_random_meta$results, cif_fixed_meta$results)
   })
+
+  # Three probands of trait "A", by default without a cause-1 event: all censored (status 0) or all
+  # with the competing event (status 2). Each has an affected parent, so every cohort keeps all three.
+  no_case_pool <- function(status) {
+    Pipeline$new(pool = data.table(
+      person_id         = c("p1", "p2", "p3"),
+      birth_year        = c(1950L, 1950L, 1951L),
+      trait             = "A",
+      trait_status      = as.integer(status),
+      trait_age         = c(3L, 4L, 5L),
+      relatives_kind    = "parents",
+      relatives_n       = 2L,
+      relatives_n_trait = c(1L, 2L, 1L)
+    ))
+  }
+
+  no_case_cohorts <- list(
+    "population"                = list(index_trait = "A"),
+    "weighted family history"   = list(index_trait = "A", relatives_trait = "A", relatives_kind = "parents"),
+    "unweighted family history" = list(
+      index_trait = "A", relatives_trait = "A", relatives_kind = "parents", use_weighted = FALSE
+    )
+  )
+
+  for (status in c(0L, 2L)) for (stratify in c(FALSE, TRUE)) for (cohort in names(no_case_cohorts)) local({
+    cif_args <- no_case_cohorts[[cohort]]
+    pool     <- rep(status, 3)
+    who      <- if (is.null(cif_args$relatives_kind)) {
+      "index_trait \"A\", so"
+    } else {
+      "index_trait \"A\", relatives_trait \"A\" and relatives_kind \"parents\", so"
+    }
+
+    if (stratify) cif_args$stratify_columns <- list("birth_year")
+
+    it(sprintf(
+      "fails with its own message when no proband has a cause-1 event (all status %d, %s, %s)",
+      status, if (stratify) "stratified" else "unstratified", cohort
+    ), {
+      expect_error(
+        do.call(no_case_pool(pool)$run_cif, cif_args),
+        paste0("No proband has a cause-1 event (trait_status 1) for ", who),
+        fixed = TRUE
+      )
+    })
+  })
+
+  it("fails the same way for a stratum-pooled cohort without a cause-1 event", {
+    expect_error(
+      no_case_pool(c(0L, 0L, 0L))$run_cif(
+        index_trait      = "A",
+        stratify_columns = list("birth_year"),
+        meta_analyze     = "fixed"
+      ),
+      "No proband has a cause-1 event",
+      fixed = TRUE
+    )
+  })
+
+  it("drops only the strata without a cause-1 event", {
+    cif <- no_case_pool(c(1L, 0L, 2L))$run_cif(
+      index_trait      = "A",
+      stratify_columns = list("birth_year")
+    )$results
+
+    # 1950: one event at age 3 among two at risk, so the CIF ends at 1/2. 1951 has no row.
+    expect_true(all(cif$birth_year == 1950L))
+    expect_equal(tail(cif$cif, 1), 0.5)
+  })
+
+  it("names the trait it found no probands for", {
+    expect_error(
+      no_case_pool(c(0L, 0L, 0L))$run_cif(index_trait = "B"),
+      "No proband TTE data found for trait B",
+      fixed = TRUE
+    )
+  })
+
+  it("passes the message on from run_h2 when no proband has a cause-1 event", {
+    for (stratify in list(list(), list("birth_year"))) {
+      expect_error(
+        no_case_pool(c(0L, 0L, 0L))$run_h2(
+          cif_pop     = list(index_trait = "A", stratify_columns = stratify),
+          cif_fh      = list(
+            index_trait = "A", relatives_trait = "A", relatives_kind = "parents", stratify_columns = stratify
+          ),
+          relatedness = 0.5
+        ),
+        "No proband has a cause-1 event (trait_status 1) for index_trait \"A\", so",
+        fixed = TRUE
+      )
+    }
+  })
 })
 
 describe("run_h2", {

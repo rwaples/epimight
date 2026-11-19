@@ -8,6 +8,15 @@
   `age_max`, `h2`, `se`, `l95` and `u95`, plus `sandwich_se`, `sandwich_l95` and `sandwich_u95` with a pedigree.
   `run_h2(meta_analyze=)` pools by age instead, so its last row leaves out every stratum whose table ends earlier.
 
+## Fixed
+
+- `run_cif` on a cohort where no proband has a cause-1 event failed with an internal dplyr error (`no applicable
+  method for 'mutate'`, or `Element ... doesn't exist` with `stratify_columns`), except for a weighted family-history
+  cohort with only competing events, which returned an empty table. Every such cohort now stops with a message
+  naming its `index_trait`, `relatives_trait` and `relatives_kind`, and `run_h2` and `run_rg` pass it on. An empty
+  table could not go further: `run_h2` rejects it. Strata without a cause-1 event are still dropped from a stratified
+  table that has other strata. The "No proband TTE data found" message now names the trait.
+
 ## Changed
 
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The
