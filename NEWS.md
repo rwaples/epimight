@@ -8,6 +8,14 @@
   `age_max`, `h2`, `se`, `l95` and `u95`, plus `sandwich_se`, `sandwich_l95` and `sandwich_u95` with a pedigree.
   `run_h2(meta_analyze=)` pools by age instead, so its last row leaves out every stratum whose table ends earlier.
 
+## Fixed
+
+- The weighted CIF reported `NA` for `cif`, `se`, `l95`, `u95` and `var` at each stratum's first cause-1 age
+  unless that age was 0. It now reports the left limit there, 0 with variance 0, as the `cmprsk` path does. h2 and rg
+  are unchanged: a CIF of 0 gives a non-finite h2 or rg, which `run_h2` and `run_rg` drop, as they dropped the `NA`.
+  A stratum with a single cause-1 age now keeps a finite CIF row instead of an `NA` row. The `NA` came from the
+  `lag()` without a default added in 2.0.0; before it, the CIF was `replace_na(lag(cif_acc), 0.0)`.
+
 ## Changed
 
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The

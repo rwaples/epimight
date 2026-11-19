@@ -139,6 +139,41 @@ describe("run", {
     expect_equal(nrow(weighted), 0)
   })
 
+  it("reports the left limit 0 with variance 0 at the first weighted cause-1 age", {
+    # One cause-1 event at 1, one at 2 and two at 3, a competing event at 4; censored at 2, 3 and 4.
+    # By hand (Aalen-Johansen, n = 8): F(1-) = 0, F(2-) = 1/8, F(3-) = 1/4, as cmprsk reports.
+    tte <- data.table(
+      person_id    = as.character(1:8),
+      trait_status = as.integer(c(1, 0, 1, 1, 1, 0, 2, 0)),
+      trait_age    = as.integer(c(1, 2, 2, 3, 3, 3, 4, 4))
+    )
+
+    weighted <- analysis$run(tte = copy(tte)[, weight := 1.0])
+
+    expect_equal(weighted$age, c(1, 2, 3))
+    expect_equal(weighted$cif, c(0, 1 / 8, 1 / 4))
+    expect_equal(weighted[1, .(se, l95, u95, var)], data.table(se = 0, l95 = 0, u95 = 0, var = 0))
+
+    unweighted <- analysis$run(tte = tte)[age == 1]
+
+    expect_equal(weighted[1, .(cif, var)], unweighted[, .(cif, var)])
+  })
+
+  it("keeps a finite row for a stratum with a single weighted cause-1 age", {
+    tte <- data.table(
+      person_id    = as.character(1:5),
+      trait_status = as.integer(c(1, 0, 1, 1, 0)),
+      trait_age    = as.integer(c(4, 6, 3, 5, 6)),
+      weight       = c(0.5, 1, 1, 0.5, 1),
+      stratum      = c(1, 1, 2, 2, 2)
+    )
+
+    results <- analysis$run(tte = tte, stratify_columns = list("stratum"))
+
+    expect_equal(results[stratum == 1, .(age, cif, se)], data.table(age = 4, cif = 0, se = 0))
+    expect_false(anyNA(results))
+  })
+
   it("only produces CIF values that increase as time progresses", {
     faults <- analysis$run(
       tte = pipeline_tte

@@ -55,9 +55,8 @@ describe("calculate_cif_influence", {
     shipped <- private_ci$run_weighted_single(fh[, .(trait_age, trait_status, weight)])
     ours    <- sandwich$calculate_cif_influence(fh$trait_age, fh$trait_status, fh$weight, shipped$age)$cif
 
-    # The weighted path's lag() leaves its first age NA when that age is above 0.
-    expect_equal(which(is.na(shipped$cif)), 1L)
-    expect_lt(max(abs(ours - shipped$cif)[-1]), 1e-12)
+    expect_gt(shipped$age[1], 0)
+    expect_lt(max(abs(ours - shipped$cif)), 1e-12)
   })
 
   it("reports cmprsk's CIF at every reported age", {

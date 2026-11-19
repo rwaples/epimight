@@ -128,10 +128,12 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
         filter(
           weight_event_1 > 0.0
         ) |>
+        # Report the left limit at each cause-1 age, as cmprsk does: nothing precedes the
+        # first one, so it is 0 with variance 0
         mutate(
-          cif   = ifelse(trait_age == 0, 0, lag(cif_acc)),
+          cif   = lag(cif_acc, default = 0),
           cases = cumsum(weight_event_1) * cases_scale,
-          var   = ifelse(trait_age == 0, 0, lag(var))
+          var   = lag(var, default = 0)
         ) |>
         rename(age = trait_age) |>
         select(age, cif, cases, var) |>
