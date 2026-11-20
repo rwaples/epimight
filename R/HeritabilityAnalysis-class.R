@@ -2,7 +2,6 @@
 #' @description
 #' R6 class that performs different types of analyses.
 #' @docType class
-#' @import cmprsk
 #' @import data.table
 #' @import dplyr
 #' @import dtplyr

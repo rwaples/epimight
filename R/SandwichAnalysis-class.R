@@ -129,7 +129,7 @@ SandwichAnalysis <- R6::R6Class( #nolint
     #'
     #' The value reported at age `a` is the left limit
     #' `F(a-) = sum_{t < a} S(t-) dN1(t) / Y(t)`, with all-cause survival `S`, which is what
-    #' `CumulativeIncidenceAnalysis` reports for both the weighted and the `cmprsk` path. A
+    #' `CumulativeIncidenceAnalysis` reports for every cohort, weighted or not. A
     #' competing event (`trait_status == 2`) enters through `S` only. `phi[i, j]` carries row
     #' `i`'s share `w_i / sum(w)` of the cohort weight, so scaling row `i`'s weight by
     #' `1 + eps` moves the CIF at `ages[j]` by `eps * phi[i, j]` to first order, and the CIF

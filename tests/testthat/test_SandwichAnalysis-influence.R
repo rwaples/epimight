@@ -58,7 +58,7 @@ describe("calculate_cif_influence", {
     expect_lt(max(abs(ours - shipped$cif)), 1e-12)
   })
 
-  it("reports cmprsk's CIF at every reported age", {
+  it("reports the unweighted cohort's CIF at every reported age", {
     tte     <- pop[, .(person_id = as.character(person), trait_status, trait_age)]
     shipped <- CumulativeIncidenceAnalysis$new()$run(tte = tte)
     ours    <- sandwich$calculate_cif_influence(pop$trait_age, pop$trait_status, rep(1, nrow(pop)), shipped$age)$cif

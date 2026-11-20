@@ -15,6 +15,23 @@
   cell, 0.9206 and 0.9106. A stratum gets rg when the trait 1 population and cross CIFs share an age and
   both h2 tables have a row, even if the five tables share no age. The sandwich SEs follow each input to
   its age.
+- Every CIF comes from one estimator: `cmprsk::cuminc`'s `cinc` recursion run on weighted counts, with
+  weight 1 for a cohort without weights. Before, a cohort with a `weight` column (family-history and
+  cross cohorts with `use_weighted = TRUE`) got Greenwood's formula on weighted counts, and other cohorts
+  got `cuminc`. Unweighted tables are unchanged. Weighted tables change in four ways:
+  - they gain cuminc's rows: age 0, and the last follow-up age when it has no trait event;
+  - their first row is 0, no longer NA;
+  - their variance gains the competing-event terms;
+  - their variance no longer grows when every weight is divided by the same number.
+
+  Because every table now has a row at its last follow-up age, every h2 and rg headline moves to the
+  end of follow-up and counts the trait events of the last event age. On 20 replicates each of three
+  simulated designs, rg read all four inputs at one age in 658 of 660 strata (216 had read four
+  different ages). Against the simulated truth the headlines moved by at most 0.0048 (h2) and 0.0073
+  (rg), each at most 0.31 of the bias's Monte Carlo SE. The weighted CIF `se` fell to a median of
+  0.76–0.83 of the old value, and the population `se` did not change. The variance still leaves out
+  the covariance of trait and competing events tied at one age, as cuminc does (rwaples/epimight#8).
+  cmprsk moves from Imports to Suggests, with survival, as test oracles.
 - `run_cif(meta_analyze=)` pools only the rows with a finite, positive `se`, and reports how many strata
   it pooled at each age in a new `n_strata` column. A row with `se` 0 (the age-0 row, and a stratum's
   first cause-1 age, where its CIF is still 0) took an infinite fixed-effect weight. Meta tables no longer

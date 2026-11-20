@@ -590,6 +590,60 @@ with the following members:
 | results      | Analysis results as a single ~data.table~          |
 | args         | Arguments supplied to the interface                |
 
+* CIF rows and standard errors
+
+~run_cif~ uses one estimator for every cohort: the recursion of ~cmprsk::cuminc~ (its Fortran
+routine ~cinc~), run on weighted counts. The point is the Aalen–Johansen cause-1 CIF, and the
+variance is Aalen's delta-method variance. A population cohort, or a family-history cohort with
+~use_weighted = FALSE~, has weight 1 for every proband, and its table equals ~cmprsk::cuminc~'s
+with the first row kept at each age.
+
+Each stratum's table has these rows:
+
+- age 0, with ~cif~ 0 and ~se~ 0;
+- each age with a trait event (cause 1), with the CIF just before that age, F(age-), and its
+  variance;
+- the last follow-up age, when no trait event falls on it. There F(age-) equals F(age), so the
+  row holds every trait event in the data.
+
+~cases~ counts the trait events through the row's age, including that age. In a weighted cohort
+it is the sum of the event weights, scaled by sum(w) / sum(w^2).
+
+The variance treats probands as independent and their weights as fixed. Each event age adds a
+term with the sum of the squared event weights over the squared weighted number at risk. Tied
+events take ~cmprsk~'s correction 1 - (m - 1) / (n - 1), where m is the number of people with the
+event and n the number at risk. Competing events (any status other than 0 and 1) add their own
+terms. Dividing every weight by the same number changes neither ~cif~, ~se~ nor ~cases~.
+
+What the variance leaves out:
+
+- *Trait and competing events tied at one age.* Within one integer age their counts covary, and
+  ~cinc~ has no term for that. Neither does EPIMIGHT, so that it stays equal to ~cmprsk~
+  ([[https://github.com/rwaples/epimight/issues/8][rwaples/epimight#8]]). In a balanced example
+  (n = 4000; a quarter each of trait and competing events at age 1, trait events at 2, censored at
+  3), F(3-) = 0.5 has the exact variance 6.25e-05, and both ~cmprsk~ and EPIMIGHT give
+  5.470899366e-05. At register-like annual hazards the gap is small. EPIMIGHT's variance over
+  ~survival::survfit~'s infinitesimal-jackknife variance, at ages 20, 40 and 60:
+
+  | Trait hazard | Competing hazard | Ratio at 20, 40, 60       |
+  |--------------+------------------+---------------------------|
+  |        0.005 |             0.01 | 0.9995, 0.9986, 0.9986    |
+  |         0.02 |             0.02 | 0.9934, 0.9889, 0.9875    |
+  |         0.05 |             0.05 | 0.9667, 0.9571, 0.9589    |
+- *Related probands.* Family members' outcomes are correlated, and a family-history weight is
+  computed from the relatives' outcomes, so it is not a fixed constant. The CIF SE accounts for
+  neither.
+
+The CIF SE reaches ~run_cif~'s ~se~, ~l95~ and ~u95~, and the weights of ~run_cif~'s
+~meta_analyze~. The h2 and rg SEs do not use it: they come from ~cases~, or from the sandwich
+(Sandwich standard errors). A meta-analyzed CIF cannot be passed to ~run_h2~ or ~run_rg~.
+
+~meta_analyze~ pools the strata at each age by inverse variance over the rows with a finite,
+positive ~se~, and reports the number pooled in ~n_strata~. The age-0 rows never enter, so the
+pooled table has no age-0 row. At a stratum's first trait-event age its CIF is still 0, with
+~se~ 0, so it drops out of that age's pool. That pushes the pooled CIF up at that age, and
+~n_strata~ shows which ages are affected.
+
 * The ages rg reads
 
 ~calculate_rg~ is a lifetime-risk formula: its five inputs should each describe risk through
@@ -604,6 +658,17 @@ reach, and reports those ages next to rg:
 
 A stratum gets an rg row when all four exist and ~calculate_rg~ is finite. The meta-analyzed
 rg has no age columns, since it pools strata read at different ages.
+
+Every CIF table has a row at its cohort's last follow-up age (CIF rows and standard errors),
+and an h2 table has a row at every age its two CIF tables share where h2 is finite and
+positive. So when a stratum's cohorts all
+end follow-up at one age, and the h2 there is finite and positive, all four inputs are read at
+that age. The ages differ in two cases:
+
+- a cohort ends follow-up early, for example a family-history cohort whose last proband is
+  censored before the population's;
+- an h2 at the end of follow-up is not finite and positive, so the h2 is read at its table's
+  last usable row.
 
 Earlier versions read all five inputs at one age, the last age all five tables shared. The
 trait with the earlier onset sets that age, so the other trait was read before most of its

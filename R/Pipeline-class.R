@@ -766,11 +766,21 @@ Pipeline <- R6::R6Class( #nolint
     },
     #' Produces cumulative incidence for the given trait and relative kind.
     #'
+    #' Every cohort uses one estimator, cmprsk's `cinc` recursion on weighted counts, with weight
+    #' 1 for a cohort without weights; unweighted, it equals `cmprsk::cuminc`. Per stratum, the
+    #' rows are age 0, each cause-1 age with the left limit F(age-) and its variance, and the last
+    #' follow-up age when it has no cause-1 event. `cases` counts through the row's age. The
+    #' variance leaves out the covariance of cause-1 and competing events tied at one age, as
+    #' cmprsk does (rwaples/epimight#8), and treats probands as independent with fixed weights.
+    #'
     #' @param index_trait Label of the trait to retrieve time-to-event data for.
     #' @param relative_trait Label of the trait to retrieve time-to-event data for.
     #' @param relative_kind Label of the kind of relative to retrieve time-to-event data for.
     #' @param stratify_columns List of columns to stratify the results on.
     #' @param use_weighted Boolean on whether to calculate the weight column used in weighted CIF calculations.
+    #' @param meta_analyze `"fixed"` or `"random"`: pool the strata at each age by inverse variance,
+    #'   over the rows with a finite, positive `se`. A stratum still at a CIF of 0 there (its
+    #'   first cause-1 age) drops out of that age's pool. `n_strata` counts the strata pooled.
     #' @returns A named list with metadata and results.
     run_cif = function(...) {
       validator <- do.call(ArgumentsValidator$new, self$validation_rules$cif$properties)

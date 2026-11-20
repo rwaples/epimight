@@ -20,10 +20,11 @@ Suggests:
     pkgdown,
     testthat (>= 3.0.0),
     waldo,
-    microbenchmark
+    microbenchmark,
+    cmprsk,
+    survival
 Imports:
     R6,
-    cmprsk,
     data.table,
     dplyr,
     dtplyr,
