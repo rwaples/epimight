@@ -723,7 +723,7 @@ Pipeline <- R6::R6Class( #nolint
         , ..columns
       ]
 
-      if (nrow(tte) == 0) stop(paste0("No proband TTE data found for trait ", index_trait))
+      if (nrow(tte) == 0) stop(paste0("No proband TTE data found for trait ", args$index_trait))
 
       if (!is.null(args$relatives_trait) && !is.null(args$relatives_kind)) {
         relatives_tte <- private$pool[
@@ -834,8 +834,8 @@ Pipeline <- R6::R6Class( #nolint
         stratify_columns = args$stratify_columns
       )
 
-      # Without a cause-1 event the CIF analysis returns NULL, an empty table, or (stratified) a table
-      # without columns, depending on the path. No CIF row means no h2 or rg either, so stop here.
+      # Without a cause-1 event the CIF analysis returns NULL unstratified, or an empty table with no
+      # columns stratified. No CIF row means no h2 or rg either, so stop here.
       if (is.null(cif) || nrow(cif) == 0) {
         cohort <- paste0("index_trait \"", args$index_trait, "\"")
 

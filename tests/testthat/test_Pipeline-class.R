@@ -369,13 +369,22 @@ describe("run_cif on a cohort with no cause-1 event", {
     population = list(index_trait = "A"),
     weighted   = list(index_trait = "A", relatives_trait = "B", relatives_kind = "sib")
   )
+  names_cohort <- list(
+    population = 'for index_trait "A", so',
+    weighted   = 'for index_trait "A", relatives_trait "B" and relatives_kind "sib", so'
+  )
 
   it("stops with a message that names the cohort, stratified or not", {
-    for (cohort in cohorts) {
+    for (kind in names(cohorts)) {
       for (strata in list(NULL, list(stratify_columns = list("birth_year")))) {
-        expect_error(do.call(empty$run_cif, c(cohort, strata)), "No proband has a cause-1 event")
+        expect_error(do.call(empty$run_cif, c(cohorts[[kind]], strata)), "No proband has a cause-1 event")
+        expect_error(do.call(empty$run_cif, c(cohorts[[kind]], strata)), names_cohort[[kind]], fixed = TRUE)
       }
     }
+  })
+
+  it("names the missing trait when the pool has no rows for it", {
+    expect_error(empty$run_cif(index_trait = "Z"), "No proband TTE data found for trait Z", fixed = TRUE)
   })
 })
 
