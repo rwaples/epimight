@@ -13,6 +13,9 @@
 - The pipeline guide's sandwich section said only per-stratum outputs had been checked for coverage. The
   coverage checks scored the fixed-effect last-age pool of h2 and the fixed-effect pool of per-stratum rg; the
   guide now says so, and adds a section on pooling h2 across strata.
+- The pipeline guide now describes the SE of a weighted CIF: it scales with the weights (dividing them by m
+  multiplies `se` by √m) and does not account for the weights being random. Kish-scaling the Greenwood terms
+  was tested in simulation and left out, since it made the interval too narrow. The estimator is unchanged.
 
 # epimight 2.2.0
 

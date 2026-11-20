@@ -116,7 +116,10 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
             ),
             cif_acc
           ),
-          # Greenwoods formula
+          # Greenwoods formula on the weighted counts. It is not invariant to the
+          # weight scale (weights / m gives var * m); Kish-scaling it narrows the
+          # interval below nominal coverage (guides/pipeline/guide.org, "Standard
+          # errors of weighted CIFs").
           var = ifelse(
             at_risk > 0.0,
             (surv * surv) * cumsum(

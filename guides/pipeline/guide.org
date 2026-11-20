@@ -590,6 +590,22 @@ with the following members:
 | results      | Analysis results as a single ~data.table~          |
 | args         | Arguments supplied to the interface                |
 
+** Standard errors of weighted CIFs
+
+With ~use_weighted~, a family-history CIF weights each proband by ~relatives_n_trait /
+relatives_n~, and its ~se~, ~l95~ and ~u95~ come from Greenwood's formula applied to the
+weighted counts. That formula treats the sum of the weights as the number of people at risk,
+so the SE depends on the scale of the weights: dividing every weight by m leaves ~cif~ and
+~cases~ unchanged and multiplies ~se~ by √m. The SE is only meaningful for the weights the
+pipeline computes, which lie in (0, 1].
+
+Those weights are not fixed by design. They depend on the relatives' outcomes, and related
+probands share relatives, so the weighted CIF varies more than a formula for fixed weights
+allows. Rescaling the counts to Kish's effective count (Σw / Σw², as ~cases~ does) removes the
+dependence on scale but makes the interval too narrow; the unscaled formula comes out close
+because the two errors roughly cancel. Treat these SEs as approximate. The h2 and rg SEs do
+not use them.
+
 * Pooling h² across strata
 
 ~run_h2~ gives one h2 per stratum and age, and its ~meta_analyze~ argument pools the strata
