@@ -42,6 +42,8 @@
         # Development
         devtools testthat lintr knitr rmarkdown pkgdown box microbenchmark progress
         waldo
+        # Test oracles (cmprsk is also a requirement until it moves to Suggests)
+        survival
         # Requirements
         dplyr dtplyr data_table cmprsk ggplot2 stringr readr tidyr rlang
         jinjar yaml rjson pedigree_graph
