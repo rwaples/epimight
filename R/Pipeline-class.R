@@ -795,16 +795,23 @@ Pipeline <- R6::R6Class( #nolint
 
         group_columns <- list("index_trait", "relatives_trait", "relatives_kind", "age")
 
-        cif      <- do.call(self$run_cif, sub_args)
-        cif_meta <- private$analyses$core$run_meta(
-          estimates       = cif$results,
+        # Only rows with a finite, positive se enter: an se of 0 (the age-0 row, or a stratum's
+        # first cause-1 age, where its CIF is still 0) would take an infinite weight. Dropping a
+        # stratum still at 0 leans that age's pool up; `n_strata` counts the strata pooled.
+        cif       <- do.call(self$run_cif, sub_args)
+        estimates <- cif$results |> filter(is.finite(se), se > 0)
+        counts    <- estimates |> count(!!!rlang::syms(group_columns), name = "n_strata")
+        cif_meta  <- private$analyses$core$run_meta(
+          estimates       = estimates,
           estimate_column = "cif",
           se_column       = "se",
           group_columns   = group_columns
         ) |>
           rename_with(~ str_remove(., sprintf("^%s_", args$meta_analyze))) |>
-          select(!!!group_columns, meta, se, l95, u95) |>
-          rename(cif = meta)
+          left_join(counts, by = unlist(group_columns)) |>
+          select(!!!group_columns, n_strata, meta, se, l95, u95) |>
+          rename(cif = meta) |>
+          as.data.table()
 
         self$add_results("cif", cif_meta, args)
 

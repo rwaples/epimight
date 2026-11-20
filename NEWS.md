@@ -15,6 +15,13 @@
   cell, 0.9206 and 0.9106. A stratum gets rg when the trait 1 population and cross CIFs share an age and
   both h2 tables have a row, even if the five tables share no age. The sandwich SEs follow each input to
   its age.
+- `run_cif(meta_analyze=)` pools only the rows with a finite, positive `se`, and reports how many strata
+  it pooled at each age in a new `n_strata` column. A row with `se` 0 (the age-0 row, and a stratum's
+  first cause-1 age, where its CIF is still 0) took an infinite fixed-effect weight. Meta tables no longer
+  have an age-0 row. At a stratum's first cause-1 age that stratum now drops out of the pool, which leans
+  that age's pooled CIF up; `n_strata` shows where. Random-effects pools change for population cohorts
+  too: their between-stratum variance is `var()` over every pooled row, and the zero rows no longer
+  enter it.
 
 ## Added
 

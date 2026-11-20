@@ -355,6 +355,69 @@ describe("run_cif", {
   })
 })
 
+describe("run_cif with meta_analyze", {
+  # Inverse-variance pool by hand over the rows with a finite, positive se. The random pool's
+  # between-stratum variance is var() over every such row of the table, as run_meta takes it.
+  hand_pool <- function(table, method) {
+    rows <- table[is.finite(se) & se > 0]
+    tau2 <- if (method == "random") var(rows$cif) else 0
+    rows[, .(n_strata = .N, cif = sum(cif / (se^2 + tau2)) / sum(1 / (se^2 + tau2)),
+             se = sqrt(1 / sum(1 / (se^2 + tau2)))), keyby = age]
+  }
+  cohorts <- list(
+    pop = list(index_trait = "SCZ", stratify_columns = list("birth_year")),
+    fh  = list(index_trait = "SCZ", relatives_trait = "SCZ", relatives_kind = "half_siblings",
+               stratify_columns = list("birth_year"))
+  )
+
+  it("pools only the rows with a finite, positive se, and counts the strata it pools", {
+    for (cohort in cohorts) for (method in c("fixed", "random")) {
+      pipeline$clear_results()
+      table    <- as.data.table(do.call(pipeline$run_cif, cohort)$results)
+      pooled   <- as.data.table(do.call(pipeline$run_cif, c(cohort, meta_analyze = method))$results)[order(age)]
+      expected <- hand_pool(table, method)
+
+      expect_equal(pooled$age, expected$age)
+      expect_equal(pooled$n_strata, expected$n_strata)
+      expect_equal(pooled$cif, expected$cif, tolerance = 1e-12)
+      expect_equal(pooled$se, expected$se, tolerance = 1e-12)
+    }
+  })
+
+  it("pools a cohort with an age-0 row as without it", {
+    for (cohort in cohorts) {
+      pipeline$clear_results()
+      table  <- as.data.table(do.call(pipeline$run_cif, cohort)$results)
+      pooled <- as.data.table(do.call(pipeline$run_cif, c(cohort, meta_analyze = "fixed"))$results)[order(age)]
+
+      expect_true(any(table$age == 0))
+      expect_false(any(pooled$age == 0))
+      expect_equal(pooled$cif, hand_pool(table[age != 0], "fixed")$cif, tolerance = 1e-12)
+    }
+  })
+
+  it("drops a stratum still at F = 0 from that age's pool, which leans the pool up", {
+    pipeline$clear_results()
+    cohort <- cohorts$pop
+    table  <- as.data.table(do.call(pipeline$run_cif, cohort)$results)
+    pooled <- as.data.table(do.call(pipeline$run_cif, c(cohort, meta_analyze = "fixed"))$results)
+    # A stratum's first cause-1 age carries its left limit, F = 0 with se 0.
+    first  <- table[age > 0 & cif == 0, .(birth_year, age)]
+    ages   <- intersect(first$age, pooled$age)
+
+    expect_gt(length(ages), 0)
+    for (a in ages) {
+      others <- table[age == a & se > 0]
+
+      expect_equal(pooled[age == a, n_strata], nrow(others))
+      expect_lt(pooled[age == a, n_strata], table[age == a, .N])
+      # The pool is the other strata's alone: any weight on the stratum at 0 would lower it.
+      expect_equal(pooled[age == a, cif], sum(others$cif / others$se^2) / sum(1 / others$se^2), tolerance = 1e-12)
+      expect_gt(pooled[age == a, cif], 0)
+    }
+  })
+})
+
 describe("run_h2", {
   it("returns cached results if they exist", {
     pipeline$clear_results()
