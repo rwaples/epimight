@@ -17,7 +17,7 @@ private  <- pipeline_private(pipeline)
 ids      <- unique(pool$person_id)
 h2_calc  <- HeritabilityAnalysis$new()
 rg_calc  <- GeneticCorrelationAnalysis$new()
-weighted <- CumulativeIncidenceAnalysis$new()$.__enclos_env__$private$run_weighted_single
+wcinc    <- CumulativeIncidenceAnalysis$new()$.__enclos_env__$private$wcinc
 key      <- function(cif_args) private$cache_key("cif", cif_args)
 base     <- sandwich_rg_args()
 pop      <- c(key(base$h2_t1$cif_pop), key(base$h2_t2$cif_pop))
@@ -30,12 +30,12 @@ expect_close <- function(actual, expected, rtol, atol) {
 }
 
 # Every cohort's CIF table per stratum, each person's weight scaled by `m`, from EPIMIGHT's
-# own weighted Aalen-Johansen estimator.
+# own estimator; its private entry takes weights above 1.
 oracle_tables <- function(m) {
   lapply(plan_cohorts(pipeline, base), function(tte) {
     tte <- copy(tte)[, weight := weight * m[chmatch(person_id, ids)]]
     rbindlist(lapply(split(tte, by = "stratum"), function(part) {
-      weighted(part[, .(trait_age, trait_status, weight)])[, .(stratum = part$stratum[1], age, cif)]
+      wcinc(part$trait_age, part$trait_status, part$weight)[, .(stratum = part$stratum[1], age, cif)]
     }))
   })
 }

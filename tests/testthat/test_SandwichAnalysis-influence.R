@@ -51,13 +51,11 @@ describe("calculate_cif_influence", {
   fh  <- cohorts$fh1[stratum == "a"]
   pop <- cohorts$pop1[stratum == "a"]
 
-  it("reports the weighted path's CIF at every age it reports one", {
-    shipped <- private_ci$run_weighted_single(fh[, .(trait_age, trait_status, weight)])
+  it("reports EPIMIGHT's weighted CIF at every age it reports one", {
+    shipped <- private_ci$wcinc(fh$trait_age, fh$trait_status, fh$weight)
     ours    <- sandwich$calculate_cif_influence(fh$trait_age, fh$trait_status, fh$weight, shipped$age)$cif
 
-    # The weighted path's lag() leaves its first age NA when that age is above 0.
-    expect_equal(which(is.na(shipped$cif)), 1L)
-    expect_lt(max(abs(ours - shipped$cif)[-1]), 1e-12)
+    expect_lt(max(abs(ours - shipped$cif)), 1e-12)
   })
 
   it("reports cmprsk's CIF at every reported age", {
@@ -70,8 +68,11 @@ describe("calculate_cif_influence", {
 
   it("moves the CIF by eps * phi when one row's weight scales by 1 + eps", {
     for (cohort in list(fh, pop)) {
-      ages <- private_ci$run_weighted_single(cohort[, .(trait_age, trait_status, weight)])$age
-      ages <- ages[c(2, length(ages) %/% 2, length(ages))]
+      # Probe ages where the CIF has moved off 0, so every probe has a nonzero derivative to
+      # match, and before the last follow-up age, so rows past the probe exist.
+      table <- private_ci$wcinc(cohort$trait_age, cohort$trait_status, cohort$weight)
+      ages  <- table[cif > 0 & age < max(cohort$trait_age), age]
+      ages <- ages[c(1, length(ages) %/% 2, length(ages))]
       phi  <- sandwich$calculate_cif_influence(cohort$trait_age, cohort$trait_status, cohort$weight, ages)$phi
 
       for (j in seq_along(ages)) {

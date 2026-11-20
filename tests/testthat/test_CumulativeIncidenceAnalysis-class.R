@@ -293,25 +293,8 @@ describe("run", {
     original <- analysis$run(tte = pipeline_tte |> select(-weight))
     weighted <- analysis$run(tte = pipeline_tte |> mutate(weight = 1.0))
 
-    cif_diff <- inner_join(original, weighted, by = join_by(age)) |>
-      mutate(
-        cif_diff = abs(cif.x - cif.y)
-      ) |>
-      filter(
-        cif_diff > testthat_tolerance()
-      )
-
-    expect_equal(nrow(cif_diff), 0)
-
-    se_diff <- inner_join(original, weighted, by = join_by(age)) |>
-      mutate(
-        se_diff  = abs(se.x - se.y)
-      ) |>
-      filter(
-        se_diff > 3e-05
-      )
-
-    expect_equal(nrow(se_diff), 0)
+    # One estimator serves both, with weight 1 for a cohort without a weight column.
+    expect_identical(weighted, original)
   })
 
   it("produces cif that strongly correlates with the probablity of having the trait", {

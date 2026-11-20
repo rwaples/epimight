@@ -66,86 +66,79 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
 
       rlang::call2("mutate", as.symbol("group_results"), !!!results)
     },
-    run_weighted_single = function(tte) {
-      age_summarised <- tte[
-        ,
-        .(
-          trait_max_age  = max(trait_age),
-          weight_all     = sum(weight),
-          weight_sq_all  = sum(weight ^ 2),
-          weight_event_1 = sum(ifelse(trait_status == 1, weight, 0.0)),
-          weight_event_n = sum(ifelse(trait_status != 0, weight, 0.0))
-        ),
-        by = trait_age
-      ]
+    #' @description
+    #' Cause-1 cumulative incidence of one cohort: cmprsk's `cinc` recursion (Aalen-Johansen point,
+    #' Aalen's delta-method variance) run on weighted counts. At unit weights it equals
+    #' `cmprsk::cuminc` with the first row kept at each age.
+    #'
+    #' Rows are cmprsk's: age 0, each cause-1 age with the left limit F(age-) and its variance,
+    #' and the last follow-up age when it has no cause-1 event, where F(age-) = F(age). Each
+    #' variance term uses the weights' sum of squares over the squared weighted risk set, with
+    #' cmprsk's tie correction 1 - (m - 1) / (n - 1) on people counts. Like cmprsk, it leaves out
+    #' the covariance of cause-1 and competing events tied at one age (rwaples/epimight#8).
+    #' `cases` counts cause-1 weight through each age, scaled by sum(w) / sum(w^2).
+    #'
+    #' @param trait_age Integer age at event or censoring.
+    #' @param trait_status 0 censored, 1 the trait, any other value a competing event.
+    #' @param weight Row weight, at least 0; a zero-weight row is the same as an absent row.
+    #' @returns A data.table with `age`, `cif`, `se`, `l95`, `u95`, `var` and `cases`, or NULL
+    #'   when no cause-1 event has a positive weight.
+    wcinc = function(trait_age, trait_status, weight) {
+      keep <- weight > 0
+      if (!any(keep & trait_status == 1)) return(NULL)
 
-      trait_age_max <- max(age_summarised$trait_max_age)
-      cases_scale   <- sum(age_summarised$weight_all) / sum(age_summarised$weight_sq_all)
+      rows   <- data.table(age = as.integer(trait_age[keep]), status = trait_status[keep], w = weight[keep])
+      by_age <- rows[, .(
+        w_all = sum(w),
+        n_all = .N,
+        d1    = sum(w[status == 1]),
+        q1    = sum(w[status == 1]^2),
+        m1    = sum(status == 1),
+        d2    = sum(w[status != 0 & status != 1]),
+        q2    = sum(w[status != 0 & status != 1]^2),
+        m2    = sum(status != 0 & status != 1)
+      ), keyby = age]
+      by_age[, `:=`(at_risk = rev(cumsum(rev(w_all))), n_risk = rev(cumsum(rev(n_all))))]
+      by_age[, cases := cumsum(d1) * sum(rows$w) / sum(rows$w^2)]
 
-      age_summarised |>
-        # Make sure we have a row for `trait_age` from 0 up to `trait_age_max`
-        right_join(
-          data.table(
-            trait_age = seq(0, trait_age_max)
-          ),
-          by = join_by(trait_age)
-        ) |>
-        # The failure times that were filled in will have NA's in missing columns,
-        # so we make sure to replace them with 0.0
-        mutate(
-          across(everything(), ~ replace_na(.x, 0.0))
-        ) |>
-        # Risk needs to be accumulated starting from the largest trait_age value
-        arrange(desc(trait_age)) |>
-        mutate(
-          at_risk = cumsum(weight_all)
-        ) |>
-        arrange(trait_age) |>
-        filter(weight_event_n > 0.0) |>
-        mutate(
-          # Kaplan-Meier survival estimate
-          surv = ifelse(
-            at_risk > 0.0,
-            cumprod(1.0 - weight_event_n / at_risk),
-            surv
-          ),
-          cif_acc = ifelse(
-            at_risk > 0.0,
-            cumsum(
-              replace_na(lag(surv), 1.0) * weight_event_1 / at_risk
-            ),
-            cif_acc
-          ),
-          # Greenwoods formula
-          var = ifelse(
-            at_risk > 0.0,
-            (surv * surv) * cumsum(
-              weight_event_1 / (at_risk * (at_risk - weight_event_1))
-            ),
-            0.0
-          )
-        ) |>
-        filter(
-          weight_event_1 > 0.0
-        ) |>
-        mutate(
-          cif   = ifelse(trait_age == 0, 0, lag(cif_acc)),
-          cases = cumsum(weight_event_1) * cases_scale,
-          var   = ifelse(trait_age == 0, 0, lag(var))
-        ) |>
-        rename(age = trait_age) |>
-        select(age, cif, cases, var) |>
-        mutate(
-          se  = sqrt(var),
-          l95 = cif - qnorm(0.975) * sqrt(var),
-          u95 = cif + qnorm(0.975) * sqrt(var),
-        ) |>
-        relocate(var, .after = u95) |>
-        relocate(cases, .after = var) |>
-        as.data.table()
+      tie <- function(m, n) ifelse(m > 1, 1 - (m - 1) / (n - 1), 1)
+      ev  <- by_age[d1 + d2 > 0]
+      ev[, surv := cumprod(1 - (d1 + d2) / at_risk)]
+      ev[, surv_before := c(1, head(surv, -1))]
+      ev[, cif := cumsum(surv_before * d1 / at_risk)]
+      ev[, `:=`(
+        t6_2 = ifelse(d2 > 0 & surv > 0, surv_before^2 * tie(m2, n_risk) * q2 / at_risk^2, 0),
+        t6_1 = surv_before^2 * tie(m1, n_risk) * q1 / at_risk^2,
+        inv  = ifelse(surv > 0, 1 / surv, 0)
+      )]
+      ev[, `:=`(a2 = cif * inv, a1 = 1 + inv * cif)]
+      ev[, `:=`(
+        v1 = cumsum(t6_2 * a2^2 + t6_1 * a1^2),
+        v2 = cumsum((t6_2 * a2 + t6_1 * a1) * inv),
+        v3 = cumsum((t6_2 + t6_1) * inv^2)
+      )]
+      jumps <- ev[d1 > 0, .(age, cif, var = pmax(v1 + cif^2 * v3 - 2 * cif * v2, 0))]
+
+      # cmprsk's layout: age 0, the left limit at each cause-1 age, then the last follow-up age.
+      out <- rbind(
+        data.table(age = 0L, cif = 0, var = 0),
+        data.table(age = jumps$age, cif = c(0, head(jumps$cif, -1)), var = c(0, head(jumps$var, -1))),
+        data.table(age = by_age[.N, age], cif = tail(jumps$cif, 1), var = tail(jumps$var, 1))
+      )[, head(.SD, 1), by = age]
+      index <- findInterval(out$age, by_age$age)
+
+      out[, .(
+        age, cif,
+        se    = sqrt(var),
+        l95   = cif - qnorm(0.975) * sqrt(var),
+        u95   = cif + qnorm(0.975) * sqrt(var),
+        var,
+        cases = ifelse(index > 0, by_age$cases[pmax(index, 1L)], 0)
+      )]
     },
     #' @description
-    #' Runs CIF on the given TTE data as a single group.
+    #' Runs CIF on the given TTE data as a single group. A cohort with no `weight` column has
+    #' weight 1 throughout.
     #'
     #' @param tte Data.table of TTE data to use.
     #' @returns Risk estimations.
@@ -154,70 +147,9 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
         stop("Given TTE was not a data.table")
       }
 
-      counts <- tte[, .N, by = .(trait_status, trait_age)]
+      weight <- if ("weight" %in% colnames(tte)) tte$weight else rep(1, nrow(tte))
 
-      # This check is needed because if we only have censored invidivuals
-      # then cuminc will fail with an internal error.
-      events_amount <- counts[trait_status != 0]
-
-      if (nrow(events_amount) == 0) return(NULL)
-
-      if ("weight" %in% colnames(tte)) {
-        return(
-          private$run_weighted_single(tte)
-        )
-      }
-
-      # We want to use the results from group 1 and for the status 1 (affected),
-      # therefor we use the name `1 1` when selecting the data from the cuminc results:
-      cuminc_results <- cuminc(
-        ftime   = tte$trait_age,
-        fstatus = tte$trait_status,
-        cencode = 0
-      )$`1 1`
-
-      if (is.null(cuminc_results)) return(NULL)
-
-      results <- data.table(
-        age = cuminc_results$time,
-        cif = cuminc_results$est,
-        var = cuminc_results$var
-      )[
-        ,
-        head(.SD, 1),
-        by = age
-      ][
-        ,
-        .(
-          age,
-          cif,
-          se  = sqrt(var),
-          l95 = cif - qnorm(0.975) * sqrt(var),
-          u95 = cif + qnorm(0.975) * sqrt(var),
-          var
-        )
-      ]
-
-      results <- counts[
-        trait_status == 1,
-        .(
-          age          = trait_age,
-          cases_amount = N
-        )
-      ][
-        results,
-        on = .(age)
-      ][
-        ,
-        .(
-          age, cif, se, l95, u95, var,
-          cases = cumsum(
-            ifelse(is.na(cases_amount), 0, cases_amount)
-          )
-        )
-      ]
-
-      results
+      private$wcinc(tte$trait_age, tte$trait_status, weight)
     }
   ),
   public = list(

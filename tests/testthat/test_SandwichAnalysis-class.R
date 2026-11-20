@@ -420,10 +420,12 @@ describe("rg strata and the h2 rg reads", {
   }
 
   it("gives rg in strata whose five tables share no age, the h2 tables only gating them", {
-    # Trait 1's events start after trait 2's last one, so no age is in all five tables.
+    # Trait 1's events start after trait 2's follow-up ends at 5, so no age is in all five
+    # tables. Ending follow-up early matters: every CIF table has a row at its cohort's last
+    # follow-up age, so two traits followed to one end age would share it.
     pool <- copy(golden$pool)
     pool[trait == "trait1" & trait_status != 0, trait_age := pmax(trait_age, 8L)]
-    pool[trait == "trait2" & trait_status != 0, trait_age := pmin(trait_age, 5L)]
+    pool[trait == "trait2", trait_age := pmin(trait_age, 5L)]
     pipeline <- Pipeline$new(pool = pool)
     ages     <- function(args) {
       results <- as.data.table(args$results)
@@ -451,7 +453,11 @@ describe("rg strata and the h2 rg reads", {
   })
 
   it("reads a meta-analyzed h2 at each stratum's own last h2 age", {
-    pipeline <- Pipeline$new(pool = golden$pool)
+    # The first stratum's follow-up ends at 12, so its h2 table ends before the others'.
+    pool  <- copy(golden$pool)
+    early <- min(pool$born_at_year)
+    pool[born_at_year == early & trait_age > 12L, `:=`(trait_age = 12L, trait_status = 0L)]
+    pipeline <- Pipeline$new(pool = pool)
     meta     <- c(golden_h2_args("trait1"), meta_analyze = "fixed")
     pooled   <- as.data.table(do.call(pipeline$run_h2, meta)$results)
     local    <- as.data.table(do.call(pipeline$run_h2, golden_h2_args("trait1"))$results)

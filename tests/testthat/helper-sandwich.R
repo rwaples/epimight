@@ -41,11 +41,16 @@ sandwich_assembly_cohorts <- function(cohorts) {
   })
 }
 
+# EPIMIGHT's own CIF table of one cohort and stratum. The private entry takes weights above 1.
+shipped_cif_table <- function(cohort, at_stratum) {
+  private <- CumulativeIncidenceAnalysis$new()$.__enclos_env__$private
+  part    <- cohort[stratum == at_stratum]
+  private$wcinc(part$trait_age, part$trait_status, part$weight)
+}
+
 # EPIMIGHT's own weighted Aalen-Johansen CIF of one cohort and stratum at `age`.
 shipped_weighted_cif <- function(cohort, at_stratum, at_age) {
-  private <- CumulativeIncidenceAnalysis$new()$.__enclos_env__$private
-  table   <- private$run_weighted_single(cohort[stratum == at_stratum, .(trait_age, trait_status, weight)])
-  table[age == at_age, cif]
+  shipped_cif_table(cohort, at_stratum)[age == at_age, cif]
 }
 
 # The five CIFs of `cohorts` at `age` in `stratum`, named like the cohorts.
@@ -55,10 +60,7 @@ shipped_cifs <- function(cohorts, at_stratum, at_age) {
 
 # The last age at which all five cohorts of a stratum report a CIF.
 shared_cif_age <- function(cohorts, at_stratum) {
-  private <- CumulativeIncidenceAnalysis$new()$.__enclos_env__$private
-  ages    <- lapply(cohorts, function(cohort) {
-    private$run_weighted_single(cohort[stratum == at_stratum, .(trait_age, trait_status, weight)])$age
-  })
+  ages <- lapply(cohorts, function(cohort) shipped_cif_table(cohort, at_stratum)$age)
   max(Reduce(intersect, ages))
 }
 
