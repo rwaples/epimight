@@ -86,54 +86,57 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
       keep <- weight > 0
       if (!any(keep & trait_status == 1)) return(NULL)
 
-      rows   <- data.table(age = as.integer(trait_age[keep]), status = trait_status[keep], w = weight[keep])
-      by_age <- rows[, .(
-        w_all = sum(w),
-        n_all = .N,
-        d1    = sum(w[status == 1]),
-        q1    = sum(w[status == 1]^2),
-        m1    = sum(status == 1),
-        d2    = sum(w[status != 0 & status != 1]),
-        q2    = sum(w[status != 0 & status != 1]^2),
-        m2    = sum(status != 0 & status != 1)
-      ), keyby = age]
-      by_age[, `:=`(at_risk = rev(cumsum(rev(w_all))), n_risk = rev(cumsum(rev(n_all))))]
-      by_age[, cases := cumsum(d1) * sum(rows$w) / sum(rows$w^2)]
+      # Plain vectors and one rowsum: per-stratum data.tables cost more memory than cmprsk did.
+      age    <- as.integer(trait_age[keep])
+      status <- trait_status[keep]
+      w      <- weight[keep]
+      is_1   <- status == 1
+      is_2   <- status != 0 & !is_1
+      sums   <- rowsum(cbind(w, 1, w * is_1, w^2 * is_1, is_1, w * is_2, w^2 * is_2, is_2), age, reorder = TRUE)
+      ages   <- as.integer(rownames(sums))
+      at_risk <- rev(cumsum(rev(sums[, 1])))
+      n_risk  <- rev(cumsum(rev(sums[, 2])))
+      d1 <- sums[, 3]
+      d2 <- sums[, 6]
+      cases <- cumsum(d1) * sum(w) / sum(w^2)
 
       tie <- function(m, n) ifelse(m > 1, 1 - (m - 1) / (n - 1), 1)
-      ev  <- by_age[d1 + d2 > 0]
-      ev[, surv := cumprod(1 - (d1 + d2) / at_risk)]
-      ev[, surv_before := c(1, head(surv, -1))]
-      ev[, cif := cumsum(surv_before * d1 / at_risk)]
-      ev[, `:=`(
-        t6_2 = ifelse(d2 > 0 & surv > 0, surv_before^2 * tie(m2, n_risk) * q2 / at_risk^2, 0),
-        t6_1 = surv_before^2 * tie(m1, n_risk) * q1 / at_risk^2,
-        inv  = ifelse(surv > 0, 1 / surv, 0)
-      )]
-      ev[, `:=`(a2 = cif * inv, a1 = 1 + inv * cif)]
-      ev[, `:=`(
-        v1 = cumsum(t6_2 * a2^2 + t6_1 * a1^2),
-        v2 = cumsum((t6_2 * a2 + t6_1 * a1) * inv),
-        v3 = cumsum((t6_2 + t6_1) * inv^2)
-      )]
-      jumps <- ev[d1 > 0, .(age, cif, var = pmax(v1 + cif^2 * v3 - 2 * cif * v2, 0))]
+      ev  <- which(d1 + d2 > 0)
+      y   <- at_risk[ev]
+      surv        <- cumprod(1 - (d1[ev] + d2[ev]) / y)
+      surv_before <- c(1, head(surv, -1))
+      cif  <- cumsum(surv_before * d1[ev] / y)
+      t6_2 <- ifelse(d2[ev] > 0 & surv > 0, surv_before^2 * tie(sums[ev, 8], n_risk[ev]) * sums[ev, 7] / y^2, 0)
+      t6_1 <- surv_before^2 * tie(sums[ev, 5], n_risk[ev]) * sums[ev, 4] / y^2
+      inv  <- ifelse(surv > 0, 1 / surv, 0)
+      a2   <- cif * inv
+      a1   <- 1 + inv * cif
+      v1   <- cumsum(t6_2 * a2^2 + t6_1 * a1^2)
+      v2   <- cumsum((t6_2 * a2 + t6_1 * a1) * inv)
+      v3   <- cumsum((t6_2 + t6_1) * inv^2)
+      jump      <- d1[ev] > 0
+      jump_age  <- ages[ev][jump]
+      jump_cif  <- cif[jump]
+      jump_var  <- pmax(v1[jump] + jump_cif^2 * v3[jump] - 2 * jump_cif * v2[jump], 0)
 
-      # cmprsk's layout: age 0, the left limit at each cause-1 age, then the last follow-up age.
-      out <- rbind(
-        data.table(age = 0L, cif = 0, var = 0),
-        data.table(age = jumps$age, cif = c(0, head(jumps$cif, -1)), var = c(0, head(jumps$var, -1))),
-        data.table(age = by_age[.N, age], cif = tail(jumps$cif, 1), var = tail(jumps$var, 1))
-      )[, head(.SD, 1), by = age]
-      index <- findInterval(out$age, by_age$age)
+      # cmprsk's layout: age 0, the left limit at each cause-1 age, then the last follow-up age,
+      # whose row holds the final CIF unless that age is itself a cause-1 age.
+      out_age <- sort(unique(c(0L, jump_age, ages[length(ages)])))
+      i       <- match(out_age, jump_age)
+      at_jump <- !is.na(i)
+      out_cif <- ifelse(at_jump, c(0, head(jump_cif, -1))[i], ifelse(out_age == 0L, 0, tail(jump_cif, 1)))
+      out_var <- ifelse(at_jump, c(0, head(jump_var, -1))[i], ifelse(out_age == 0L, 0, tail(jump_var, 1)))
+      index   <- findInterval(out_age, ages)
 
-      out[, .(
-        age, cif,
-        se    = sqrt(var),
-        l95   = cif - qnorm(0.975) * sqrt(var),
-        u95   = cif + qnorm(0.975) * sqrt(var),
-        var,
-        cases = ifelse(index > 0, by_age$cases[pmax(index, 1L)], 0)
-      )]
+      data.table(
+        age   = out_age,
+        cif   = out_cif,
+        se    = sqrt(out_var),
+        l95   = out_cif - qnorm(0.975) * sqrt(out_var),
+        u95   = out_cif + qnorm(0.975) * sqrt(out_var),
+        var   = out_var,
+        cases = ifelse(index > 0, cases[pmax(index, 1L)], 0)
+      )
     },
     #' @description
     #' Runs CIF on the given TTE data as a single group. A cohort with no `weight` column has
