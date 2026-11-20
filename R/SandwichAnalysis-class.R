@@ -410,11 +410,13 @@ SandwichAnalysis <- R6::R6Class( #nolint
           )
         }
 
-        cols <- unique(part$output)
-        coef <- matrix(0, length(ages), length(cols))
-        coef[cbind(match(part$age, ages), match(part$output, cols))] <- part$coef
-
-        psi[tte$row, cols] <- psi[tte$row, cols, drop = FALSE] + infl$phi %*% coef
+        # Each output sums over its own ages only. A product over the batch's union of ages
+        # would let BLAS group the additions by batch, so a column's last bits would depend
+        # on which other outputs share its batch.
+        for (own in split(part, part$output)) {
+          psi[tte$row, own$output[1]] <- psi[tte$row, own$output[1]] +
+            drop(infl$phi[, match(own$age, ages), drop = FALSE] %*% own$coef)
+        }
       }
 
       psi
