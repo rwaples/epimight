@@ -6,8 +6,6 @@
 #' @import dtplyr
 #' @import tidyr
 #' @import stringr
-#' @import rjson
-#' @import waldo
 #' @export
 Pipeline <- R6::R6Class( #nolint
   "Pipeline",
@@ -503,6 +501,7 @@ Pipeline <- R6::R6Class( #nolint
         enum    = list("random", "fixed")
       )
     ),
+    #' @description
     #' Creates a pipeline instance ready to be used to run analyses.
     #'
     #' @seealso [run_default_rg()] For quickly running a full genetic correlation.
@@ -666,11 +665,13 @@ Pipeline <- R6::R6Class( #nolint
         filter(row_number() == 1) |>
         as.data.table()
     },
+    #' @description
     #' Removes all results from the cache.
     clear_results = function() {
       private$results       <- list(cif = list(), h2 = list(), h2_pooled = list(), rg = list())
       private$sandwich_runs <- list()
     },
+    #' @description
     #' Adds the given analysis results to the cache.
     #'
     #' @param type A label that identifies what analysis produced the results: "cif", "h2", "h2_pooled" or "rg".
@@ -684,6 +685,7 @@ Pipeline <- R6::R6Class( #nolint
 
       private$results[[type]][[private$cache_key(type, args)]] <- results
     },
+    #' @description
     #' Gets the analysis results produced by the given analysis arguments from the cache.
     #'
     #' @param type A label that identifies what analysis produced the results: "cif", "h2", "h2_pooled" or "rg".
@@ -696,6 +698,7 @@ Pipeline <- R6::R6Class( #nolint
 
       private$results[[type]][[private$cache_key(type, args)]]
     },
+    #' @description
     #' Gets time-to-event data from the pool using the given analysis arguments.
     #'
     #' @param index_trait Label of the trait to retrieve time-to-event data for.
@@ -764,6 +767,7 @@ Pipeline <- R6::R6Class( #nolint
 
       tte
     },
+    #' @description
     #' Produces cumulative incidence for the given trait and relative kind.
     #'
     #' Every cohort uses one estimator, cmprsk's `cinc` recursion on weighted counts, with weight
@@ -867,6 +871,7 @@ Pipeline <- R6::R6Class( #nolint
 
       list(metadata = metadata, results = cif)
     },
+    #' @description
     #' Produces heritability for the given trait and relative kind.
     #'
     #' @param cif_pop Analysis arguments for population cumulative incidence. See run_cif for details.
@@ -880,6 +885,7 @@ Pipeline <- R6::R6Class( #nolint
 
       private$with_sandwich_columns("h2", out)
     },
+    #' @description
     #' Produces heritability pooled across strata, each stratum read at its own last age.
     #'
     #' Each stratum's h2 at the last age of its h2 table (the row [run_h2()] gives it) enters
@@ -937,6 +943,7 @@ Pipeline <- R6::R6Class( #nolint
 
       private$with_sandwich_columns("h2_pooled", out)
     },
+    #' @description
     #' Produces genetic correlations for the two given traits.
     #'
     #' Per stratum, each input is read at the latest age its own tables reach: kc and krc at the
@@ -958,6 +965,7 @@ Pipeline <- R6::R6Class( #nolint
 
       private$with_sandwich_columns("rg", out)
     },
+    #' @description
     #' Produces genetic correlations for the two given traits using sane defaults.
     #'
     #' @param heritability1 Analysis arguments for heritability of trait 1.

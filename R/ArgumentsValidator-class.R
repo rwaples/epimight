@@ -4,6 +4,7 @@
 #' from that ruleset.
 #' @docType class
 #' @import R6
+#' @export
 ArgumentsValidator <- R6::R6Class( #nolint
   "ArgumentsValidator",
   public = list(
