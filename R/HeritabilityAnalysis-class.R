@@ -11,7 +11,14 @@
 HeritabilityAnalysis <- R6::R6Class( #nolint
   "HeritabilityAnalysis",
   inherit = Analysis,
-  private = list(),
+  private = list(
+    # An h2 at or below this is zero up to round-off, not a positive estimate. When the
+    # family-history CIF equals the population's in exact arithmetic, kr == k1 and h2 is 0, but
+    # the two tables are summed over different rows, so they can differ in the last bits, which
+    # leaves h2 near +-1e-16 with an SE of order 1. The value is em3-h2-roundoff's
+    # (rwaples/epimight#3); the Python port gates on the same constant.
+    h2_tolerance = 1e-10
+  ),
   public = list(
     initialize = function() {
       super$initialize()
@@ -110,7 +117,7 @@ HeritabilityAnalysis <- R6::R6Class( #nolint
             all_vars(!is.infinite(.) & !is.na(.))
           ) |>
           filter(
-            h2 > 0
+            h2 > private$h2_tolerance
           )
       })
 
