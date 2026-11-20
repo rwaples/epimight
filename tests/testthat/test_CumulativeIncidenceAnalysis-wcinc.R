@@ -59,7 +59,9 @@ survfit_left_limit <- function(age, status, weight, at) {
 # rather than cinc's v1/v2/v3.
 quadratic_form_var <- function(age, status, weight, at, at_cif) {
   keep <- weight > 0
-  age <- age[keep]; status <- status[keep]; weight <- weight[keep]
+  age    <- age[keep]
+  status <- status[keep]
+  weight <- weight[keep]
   terms <- list()
   surv  <- 1
   cif   <- 0
