@@ -615,6 +615,12 @@ events take ~cmprsk~'s correction 1 - (m - 1) / (n - 1), where m is the number o
 event and n the number at risk. Competing events (any status other than 0 and 1) add their own
 terms. Dividing every weight by the same number changes neither ~cif~, ~se~ nor ~cases~.
 
+At small risk sets this variance is larger than the binomial one. Take ages 1, 2 and 3 with
+statuses 1, 1 and 0: the row at age 2 reports ~cif = 1/3~ with ~var = 1/9~, while the binomial
+variance (1/3)(2/3)/3 is 2/27, and nobody is censored before age 3. Without competing events
+each term differs from Greenwood's by n / (n - 1), so the gap shrinks as the risk set grows:
+Greenwood's variance is 0.99990 to 0.99995 of this one at n = 25,000.
+
 What the variance leaves out:
 
 - *Trait and competing events tied at one age.* Within one integer age their counts covary, and
