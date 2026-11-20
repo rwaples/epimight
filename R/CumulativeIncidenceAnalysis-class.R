@@ -83,22 +83,44 @@ CumulativeIncidenceAnalysis <- R6::R6Class( #nolint
     #' @returns A data.table with `age`, `cif`, `se`, `l95`, `u95`, `var` and `cases`, or NULL
     #'   when no cause-1 event has a positive weight.
     wcinc = function(trait_age, trait_status, weight) {
-      keep <- weight > 0
-      if (!any(keep & trait_status == 1)) return(NULL)
+      # Every per-row temporary costs a register-sized vector, so they stay few: the columns are
+      # wrapped without copying (setDT on a list) and summed by data.table's grouped sum, and
+      # only the event rows are materialised for the event quantities.
+      age    <- as.integer(trait_age)
+      status <- trait_status
+      w      <- weight
+      if (!all(w > 0)) {
+        keep   <- which(w > 0)
+        age    <- age[keep]
+        status <- status[keep]
+        w      <- w[keep]
+      }
+      e1 <- which(status == 1)
+      if (length(e1) == 0) return(NULL)
+      e2 <- which(status >= 2)
 
-      # Plain vectors and one rowsum: per-stratum data.tables cost more memory than cmprsk did.
-      age    <- as.integer(trait_age[keep])
-      status <- trait_status[keep]
-      w      <- weight[keep]
-      is_1   <- status == 1
-      is_2   <- status != 0 & !is_1
-      sums   <- rowsum(cbind(w, 1, w * is_1, w^2 * is_1, is_1, w * is_2, w^2 * is_2, is_2), age, reorder = TRUE)
-      ages   <- as.integer(rownames(sums))
+      # Per-age sum of w, of w^2 (event rows only) and the row count, on the grid 0..max(age).
+      n_grid  <- max(age) + 1L
+      on_grid <- function(at, values, squares) {
+        sums <- if (squares) {
+          setDT(list(age = at, w = values, w2 = values * values))[, .(w = sum(w), w2 = sum(w2), n = .N), keyby = age]
+        } else {
+          setDT(list(age = at, w = values))[, .(w = sum(w), w2 = 0, n = .N), keyby = age]
+        }
+        out <- matrix(0, n_grid, 3)
+        out[sums$age + 1L, ] <- cbind(sums$w, sums$w2, sums$n)
+        out
+      }
+      all_rows <- on_grid(age, w, FALSE)
+      sums <- cbind(all_rows[, c(1, 3), drop = FALSE], on_grid(age[e1], w[e1], TRUE), on_grid(age[e2], w[e2], TRUE))
+      present <- sums[, 2] > 0
+      sums    <- sums[present, , drop = FALSE]
+      ages    <- which(present) - 1L
       at_risk <- rev(cumsum(rev(sums[, 1])))
       n_risk  <- rev(cumsum(rev(sums[, 2])))
       d1 <- sums[, 3]
       d2 <- sums[, 6]
-      cases <- cumsum(d1) * sum(w) / sum(w^2)
+      cases <- cumsum(d1) * sum(all_rows[, 1]) / drop(crossprod(w))
 
       tie <- function(m, n) ifelse(m > 1, 1 - (m - 1) / (n - 1), 1)
       ev  <- which(d1 + d2 > 0)
