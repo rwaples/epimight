@@ -355,6 +355,30 @@ describe("run_cif", {
   })
 })
 
+describe("run_cif on a cohort with no cause-1 event", {
+  # Trait A has only competing events and censorings, so neither its population nor any of its
+  # weighted family-history cohorts has a cause-1 row.
+  pool <- data.table(
+    person_id = as.character(rep(1:6, each = 2)), birth_year = 2000L,
+    trait = rep(c("A", "B"), 6), trait_status = c(2L, 1L, 0L, 1L, 2L, 0L, 0L, 1L, 2L, 1L, 0L, 0L),
+    trait_age = rep(c(3L, 5L, 7L, 4L, 6L, 8L), each = 2), relatives_kind = "sib", relatives_n = 1L,
+    relatives_n_trait = 1L
+  )
+  empty <- Pipeline$new(pool = pool)
+  cohorts <- list(
+    population = list(index_trait = "A"),
+    weighted   = list(index_trait = "A", relatives_trait = "B", relatives_kind = "sib")
+  )
+
+  it("stops with a message that names the cohort, stratified or not", {
+    for (cohort in cohorts) {
+      for (strata in list(NULL, list(stratify_columns = list("birth_year")))) {
+        expect_error(do.call(empty$run_cif, c(cohort, strata)), "No proband has a cause-1 event")
+      }
+    }
+  })
+})
+
 describe("run_cif with meta_analyze", {
   # Inverse-variance pool by hand over the rows with a finite, positive se. The random pool's
   # between-stratum variance is var() over every such row of the table, as run_meta takes it.

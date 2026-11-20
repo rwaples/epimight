@@ -832,7 +832,23 @@ Pipeline <- R6::R6Class( #nolint
       cif <- private$analyses$cif$run(
         tte              = tte,
         stratify_columns = args$stratify_columns
-      ) |>
+      )
+
+      # Without a cause-1 event the CIF analysis returns NULL, an empty table, or (stratified) a table
+      # without columns, depending on the path. No CIF row means no h2 or rg either, so stop here.
+      if (is.null(cif) || nrow(cif) == 0) {
+        cohort <- paste0("index_trait \"", args$index_trait, "\"")
+
+        if (!is.null(args$relatives_trait) && !is.null(args$relatives_kind)) {
+          cohort <- paste0(
+            cohort, ", relatives_trait \"", args$relatives_trait, "\" and relatives_kind \"", args$relatives_kind, "\""
+          )
+        }
+
+        stop("No proband has a cause-1 event (trait_status 1) for ", cohort, ", so there is no cumulative incidence")
+      }
+
+      cif <- cif |>
         mutate(
           index_trait     = args$index_trait,
           relatives_trait = ifelse("relatives_trait" %in% names(args), args$relatives_trait, NA),
@@ -846,12 +862,6 @@ Pipeline <- R6::R6Class( #nolint
           age,
           everything()
         )
-
-      if (is.null(cif)) {
-        stop(paste0(
-          "No TTE events found when producing cif_", index_trait, "_", rel_trait, "_", rel_kind
-        ))
-      }
 
       self$add_results("cif", cif, args)
 
