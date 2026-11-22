@@ -615,8 +615,8 @@ So, within one pipeline run, the population CIF and the family-history CIF SEs c
 different estimators. Do not compare the two through their SEs or confidence intervals as
 if they were on one footing. The h2 and rg SEs do not use these columns; they come from
 the effective case counts (~cases~). The CIF SEs do set the weights of ~run_cif~'s
-~meta_analyze~, so when ~cif_pop~ or ~cif_fh~ carries ~meta_analyze~, they weight the pooled
-CIFs that h2 is computed from. For how the weighted variance behaves when the weights are
+~meta_analyze~, but a pooled CIF cannot feed h2 or rg: ~run_h2~ refuses a ~cif_pop~ or
+~cif_fh~ that carries ~meta_analyze~, and ~run_rg~ refuses such a ~cif_cross~. For how the weighted variance behaves when the weights are
 not 1, see Standard errors of weighted CIFs.
 
 * Pooling h² across strata
