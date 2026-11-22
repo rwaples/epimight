@@ -417,6 +417,36 @@ describe("run_cif with meta_analyze", {
     }
   })
 
+  # One stratum of three probands: one cause-1 event at `first_age`, two censored at 2.
+  one_stratum <- function(first_age) {
+    Pipeline$new(pool = data.table(
+      person_id = as.character(1:3), trait = "A", trait_status = c(1L, 0L, 0L), trait_age = c(first_age, 2L, 2L),
+      relatives_kind = "sib", relatives_n = 1L, relatives_n_trait = 1L, year = 2000L
+    ))
+  }
+  meta_args <- function(method) list(index_trait = "A", stratify_columns = list("year"), meta_analyze = method)
+
+  it("pools a single row with a positive se under fixed weights, and refuses a random pool of one", {
+    # The event at 1 leaves one row with se > 0: the trailing row at 2, F = 1/3 with var 1/9.
+    pipeline <- one_stratum(1L)
+    fixed    <- as.data.table(do.call(pipeline$run_cif, meta_args("fixed"))$results)
+
+    expect_equal(fixed$age, 2L)
+    expect_equal(fixed$n_strata, 1L)
+    expect_equal(fixed$cif, 1 / 3, tolerance = 1e-12)
+    expect_equal(fixed$se, 1 / 3, tolerance = 1e-12)
+    expect_error(do.call(pipeline$run_cif, meta_args("random")),
+                 "A random-effects CIF pool needs at least 2 rows with a positive se, found 1", fixed = TRUE)
+  })
+
+  it("stops when no row has a positive se, under either method", {
+    # The only event is at 2, the last age, so every row is a left limit at 0 with se 0.
+    pipeline <- one_stratum(2L)
+    for (method in c("fixed", "random")) {
+      expect_error(do.call(pipeline$run_cif, meta_args(method)), "No CIF row has a positive se to pool", fixed = TRUE)
+    }
+  })
+
   it("pools a cohort with an age-0 row as without it", {
     for (cohort in cohorts) {
       pipeline$clear_results()

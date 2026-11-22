@@ -814,6 +814,12 @@ Pipeline <- R6::R6Class( #nolint
         # stratum still at 0 leans that age's pool up; `n_strata` counts the strata pooled.
         cif       <- do.call(self$run_cif, sub_args)
         estimates <- cif$results |> filter(is.finite(se), se > 0)
+        if (nrow(estimates) == 0) stop("No CIF row has a positive se to pool")
+        # The random pool's between-strata variance is var() over every pooled row, which one row
+        # cannot estimate; run_h2_pooled refuses a random pool of one stratum the same way.
+        if (args$meta_analyze == "random" && nrow(estimates) < 2) {
+          stop("A random-effects CIF pool needs at least 2 rows with a positive se, found ", nrow(estimates))
+        }
         counts    <- estimates |> count(!!!rlang::syms(group_columns), name = "n_strata")
         cif_meta  <- private$analyses$core$run_meta(
           estimates       = estimates,
