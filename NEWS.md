@@ -38,7 +38,14 @@
   have an age-0 row. At a stratum's first cause-1 age that stratum now drops out of the pool, which leans
   that age's pooled CIF up; `n_strata` shows where. Random-effects pools change for population cohorts
   too: their between-stratum variance is `var()` over every pooled row, and the zero rows no longer
-  enter it.
+  enter it. With no row of positive `se` the pool stops with an error, and a random-effects pool needs
+  at least 2 such rows, as `run_h2_pooled` needs 2 strata.
+- An h2 row is kept only when h2 is above 1e-10, no longer above 0. Where the family-history CIF equals
+  the population's in exact arithmetic, h2 is 0 but lands near +-1e-16, its sign decided by round-off;
+  such rows now drop out of the h2 table, and so out of every h2 and rg read.
+- `run_cif` stops with "No proband has a cause-1 event … so there is no cumulative incidence" when the
+  cohort has no positively weighted cause-1 event. Before, a weighted cohort returned an empty table and
+  an unweighted one failed with an internal error.
 
 ## Added
 
